@@ -16,7 +16,7 @@
 	  		<li><?php
         $url = $values['url'];
         if (arg(1) == 'list' && variable_get('cividownload_mode') == 2 ) {
-          $url = "https://download.civicrm.org/civicrm-{$content['civicrm_version']}-" . $values['filename'] . "?src=donate";
+          $url = "https://download.civicrm.org/civicrm-{$content['civicrm_version']}-" . $values['filename'];
         }
         ?>
         <a href="<?php echo $url;?>" target="_blank">Download CiviCRM <?php echo $content['civicrm_version']; ?> <?php echo $values['title']; ?></a></li>
@@ -35,7 +35,7 @@
 	  		<li><?php
         $url = $values['url'];
         if (arg(1) == 'list' && variable_get('cividownload_mode') == 2 ) {
-          $url = "https://download.civicrm.org/civicrm-{$content['civicrm_lts_version']}-" . $values['filename'] . "?src=donate";
+          $url = "https://download.civicrm.org/civicrm-{$content['civicrm_lts_version']}-" . $values['filename'];
         }
         ?>
         <a href="<?php echo $url;?>" target="_blank">Download CiviCRM <?php echo $content['civicrm_lts_version']; ?> <?php echo $values['title']; ?></a></li>
