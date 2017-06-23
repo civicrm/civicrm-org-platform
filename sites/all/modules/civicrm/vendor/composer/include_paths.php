@@ -7,7 +7,7 @@ $baseDir = dirname($vendorDir);
 
 return array(
     $vendorDir . '/tecnickcom',
-    $vendorDir . '/phpseclib/phpseclib/phpseclib',
     $vendorDir . '/pear/pear_exception',
     $vendorDir . '/pear/validate_finance_creditcard',
+    $vendorDir . '/phpseclib/phpseclib/phpseclib',
 );
