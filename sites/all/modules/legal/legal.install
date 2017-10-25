@@ -25,6 +25,7 @@ function legal_schema() {
       'date'       => array('type' => 'int', 'unsigned' => FALSE, 'not null' => TRUE, 'default' => 0, 'disp-width' => 11),
       'extras'     => array('type' => 'text'),
       'changes'    => array('type' => 'text'),
+      'format'     => array('type' => 'varchar', 'not null' => FALSE, 'length' => 255),
     ),
     'primary key' => array('tc_id'),
   );
@@ -43,6 +44,7 @@ function legal_schema() {
       ),
       'uid'      => array('type' => 'int', 'unsigned' => FALSE, 'not null' => TRUE, 'default' => 0, 'disp-width' => 10),
       'accepted' => array('type' => 'int', 'unsigned' => FALSE, 'not null' => TRUE, 'default' => 0, 'disp-width' => 11),
+      'tc_id'      => array('type' => 'int', 'unsigned' => FALSE, 'not null' => TRUE, 'default' => 0, 'disp-width' => 10),
     ),
     'indexes'     => array('uid' => array('uid')),
     'primary key' => array('legal_id'),
@@ -56,6 +58,9 @@ function legal_schema() {
  */
 function legal_uninstall() {
   variable_del('legal_display');
+  variable_del('legal_user_profile_display');
+  variable_del('legal_accept_every_login');
+  variable_del('legal_link_target');
 }
 
 /**
@@ -63,4 +68,49 @@ function legal_uninstall() {
  */
 function legal_update_last_removed() {
   return 6003;
+}
+
+/**
+ * Clear the menu cache.
+ */
+function legal_update_7100() {
+  menu_rebuild();
+}
+
+/**
+ * Add tc_id to legal_accepted
+ */
+function legal_update_7101() {
+  $table = 'legal_accepted';
+  $spec = array('type' => 'int', 'unsigned' => FALSE, 'not null' => TRUE, 'default' => 0, 'disp-width' => 10);
+  db_add_field($table, 'tc_id', $spec);
+}
+
+/**
+ * Adds the {legal_conditions}.format column.
+ */
+function legal_update_7102() {
+  if (!db_field_exists('legal_conditions', 'format')) {
+    db_add_field('legal_conditions', 'format', array('type' => 'varchar', 'not null' => FALSE, 'length' => 255));
+  }
+}
+
+/**
+ * Set format column of existing T&Cs to Plain Text, or to default if Plain Text doesn't exist.
+ */
+function legal_update_7103() {
+
+  $formats = filter_formats();
+
+  if (isset($formats['plain_text'])) {
+    $format = 'plain_text';
+  }
+  else {
+    $format = filter_fallback_format();
+  }
+
+  db_update('legal_conditions')
+    ->fields(array('format' => $format))
+    ->condition('format', NULL)
+    ->execute();
 }
