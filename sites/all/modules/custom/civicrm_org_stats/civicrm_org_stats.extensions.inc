@@ -7,7 +7,7 @@ require_once("civicrm_org_stats.inc");
 class civicrm_org_stats_extensions extends civicrm_org_stats {
 
   private $stats = array();
-  const URL = "http://stats.civicrm.org/bgm/extensions.php?output=json&minresults=1";
+  const URL = "https://stats.civicrm.org/json/extensions-detail.json";
 
   public function fetch() {
     $returnedRawValues = drupal_http_request(self::URL);
@@ -18,7 +18,7 @@ class civicrm_org_stats_extensions extends civicrm_org_stats {
     if (!empty($decodedValues)) {
       foreach ($decodedValues as $val) {
         if (!empty($val['name'])) {
-          $this->stats[$val['name']] = (int) $val['total'];
+          $this->stats[$val['name']] = (int) $val['num_sites'];
         }
       }
       return TRUE;
