@@ -28,6 +28,13 @@ function civicrm_org_newsfeed_rss_page() {
       foreach ($view->display as $display) {
         if ($display->display_plugin == 'feed' && (!isset($display->display_options['enabled']) || $display->display_options['enabled'])) {
           $content = views_embed_view($view_name, $display->id);
+
+          // Remove empty tags
+          // See: https://lab.civicrm.org/infrastructure/ops/issues/807
+          $content = preg_replace('/<pubDate \/>/', '', $content);
+          $content = preg_replace('/<dc:creator \/>/', '', $content);
+          $content = preg_replace('/<guid isPermaLink="false" \/>/', '', $content);
+
           // Omit the outer wrappers
           $content = substr($content, strpos($content, '<channel'));
           $output .= substr($content, 0, strpos($content, '</rss'));
