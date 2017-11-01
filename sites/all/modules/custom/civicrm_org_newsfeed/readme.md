@@ -9,3 +9,5 @@ This module aggregates rss feeds for the in-app news dashboard widget. It reads 
 Every feed in the View becomes a tab in the dashboard widget; title, description and content can be controlled entirely through editing the View.
 
 If the feed returns no results, the tab will not show.
+
+The feed is published at https://civicrm.org/news-feed.rss and is consumed by CiviCRM clients via [CRM_Dashlet_Page_Blog](https://github.com/civicrm/civicrm-core/blob/master/CRM/Dashlet/Page/Blog.php#L43).
