@@ -420,8 +420,7 @@ class CRM_Contact_BAO_Query {
    * @param null $displayRelationshipType
    * @param string $operator
    * @param string $apiEntity
-   *
-   * @return \CRM_Contact_BAO_Query
+   * @param bool|NULL $primaryLocationOnly
    */
   public function __construct(
     $params = NULL, $returnProperties = NULL, $fields = NULL,
@@ -429,8 +428,13 @@ class CRM_Contact_BAO_Query {
     $skipPermission = FALSE, $searchDescendentGroups = TRUE,
     $smartGroupCache = TRUE, $displayRelationshipType = NULL,
     $operator = 'AND',
-    $apiEntity = NULL
+    $apiEntity = NULL,
+    $primaryLocationOnly = NULL
   ) {
+    if ($primaryLocationOnly === NULL) {
+      $primaryLocationOnly = Civi::settings()->get('searchPrimaryDetailsOnly');
+    }
+    $this->_primaryLocation = $primaryLocationOnly;
     $this->_params = &$params;
     if ($this->_params == NULL) {
       $this->_params = array();
@@ -2633,29 +2637,25 @@ class CRM_Contact_BAO_Query {
         }
         continue;
       }
-      $searchPrimary = '';
-      if (Civi::settings()->get('searchPrimaryDetailsOnly') || $apiEntity) {
-        $searchPrimary = "AND {$name}.is_primary = 1";
-      }
+
+      $limitToPrimaryClause = $primaryLocation ? "AND {$name}.is_primary = 1" : '';
+
       switch ($name) {
         case 'civicrm_address':
           //CRM-14263 further handling of address joins further down...
-          if (!$primaryLocation) {
-            $searchPrimary = '';
-          }
-          $from .= " $side JOIN civicrm_address ON ( contact_a.id = civicrm_address.contact_id {$searchPrimary} )";
+          $from .= " $side JOIN civicrm_address ON ( contact_a.id = civicrm_address.contact_id {$limitToPrimaryClause} )";
           continue;
 
         case 'civicrm_phone':
-          $from .= " $side JOIN civicrm_phone ON (contact_a.id = civicrm_phone.contact_id {$searchPrimary}) ";
+          $from .= " $side JOIN civicrm_phone ON (contact_a.id = civicrm_phone.contact_id {$limitToPrimaryClause}) ";
           continue;
 
         case 'civicrm_email':
-          $from .= " $side JOIN civicrm_email ON (contact_a.id = civicrm_email.contact_id {$searchPrimary})";
+          $from .= " $side JOIN civicrm_email ON (contact_a.id = civicrm_email.contact_id {$limitToPrimaryClause})";
           continue;
 
         case 'civicrm_im':
-          $from .= " $side JOIN civicrm_im ON (contact_a.id = civicrm_im.contact_id {$searchPrimary}) ";
+          $from .= " $side JOIN civicrm_im ON (contact_a.id = civicrm_im.contact_id {$limitToPrimaryClause}) ";
           continue;
 
         case 'im_provider':
@@ -2665,7 +2665,7 @@ class CRM_Contact_BAO_Query {
           continue;
 
         case 'civicrm_openid':
-          $from .= " $side JOIN civicrm_openid ON ( civicrm_openid.contact_id = contact_a.id {$searchPrimary} )";
+          $from .= " $side JOIN civicrm_openid ON ( civicrm_openid.contact_id = contact_a.id {$limitToPrimaryClause} )";
           continue;
 
         case 'civicrm_worldregion':
@@ -2751,6 +2751,21 @@ class CRM_Contact_BAO_Query {
           $from .= CRM_Grant_BAO_Query::from($name, $mode, $side);
           continue;
 
+        case 'civicrm_campaign':
+          //Move to default case if not in either mode.
+          if ($mode & CRM_Contact_BAO_Query::MODE_CONTRIBUTE) {
+            $from .= CRM_Contribute_BAO_Query::from($name, $mode, $side);
+            continue;
+          }
+          elseif ($mode & CRM_Contact_BAO_Query::MODE_MAILING) {
+            $from .= CRM_Mailing_BAO_Query::from($name, $mode, $side);
+            continue;
+          }
+          elseif ($mode & CRM_Contact_BAO_Query::MODE_CAMPAIGN) {
+            $from .= CRM_Campaign_BAO_Query::from($name, $mode, $side);
+            continue;
+          }
+
         case 'civicrm_website':
           $from .= " $side JOIN civicrm_website ON contact_a.id = civicrm_website.contact_id ";
           continue;
@@ -2776,7 +2791,12 @@ class CRM_Contact_BAO_Query {
           if ($locationTypeName) {
             //we have a join on an location table - possibly in conjunction with search builder - CRM-14263
             $parts = explode('-', $name);
-            $locationID = array_search($parts[0], CRM_Core_BAO_Address::buildOptions('location_type_id', 'get', array('name' => $parts[0])));
+            $locationTypes = CRM_Core_BAO_Address::buildOptions('location_type_id', 'get');
+            foreach ($locationTypes as $locationTypeID => $locationType) {
+              if ($parts[0] == str_replace(' ', '_', $locationType)) {
+                $locationID = $locationTypeID;
+              }
+            }
             $from .= " $side JOIN civicrm_{$locationTypeName} `{$name}` ON ( contact_a.id = `{$name}`.contact_id ) and `{$name}`.location_type_id = $locationID ";
           }
           else {
@@ -3157,7 +3177,7 @@ WHERE  $smartGroupClause
       // search tag in activities
       $etActTable = "`civicrm_entity_act_tag-" . $value . "`";
       $tActTable = "`civicrm_act_tag-" . $value . "`";
-      $activityContacts = CRM_Core_OptionGroup::values('activity_contacts', FALSE, FALSE, FALSE, NULL, 'name');
+      $activityContacts = CRM_Activity_BAO_ActivityContact::buildOptions('record_type_id', 'validate');
       $targetID = CRM_Utils_Array::key('Activity Targets', $activityContacts);
 
       $this->_tables[$etActTable] = $this->_whereTables[$etActTable]
@@ -3216,7 +3236,7 @@ WHERE  $smartGroupClause
 
       // search tag in cases
       $etCaseTable = "`civicrm_entity_case_tag-" . $value . "`";
-      $activityContacts = CRM_Core_OptionGroup::values('activity_contacts', FALSE, FALSE, FALSE, NULL, 'name');
+      $activityContacts = CRM_Activity_BAO_ActivityContact::buildOptions('record_type_id', 'validate');
       $targetID = CRM_Utils_Array::key('Activity Targets', $activityContacts);
 
       $this->_tables[$etCaseTable] = $this->_whereTables[$etCaseTable]
@@ -4408,6 +4428,7 @@ civicrm_relationship.is_permission_a_b = 0
    *   The api entity being called.
    *   This sort-of duplicates $mode in a confusing way. Probably not by design.
    *
+   * @param bool|null $primaryLocationOnly
    * @return array
    */
   public static function apiQuery(
@@ -4421,7 +4442,8 @@ civicrm_relationship.is_permission_a_b = 0
     $count = FALSE,
     $skipPermissions = TRUE,
     $mode = CRM_Contact_BAO_Query::MODE_CONTACTS,
-    $apiEntity = NULL
+    $apiEntity = NULL,
+    $primaryLocationOnly = NULL
   ) {
 
     $query = new CRM_Contact_BAO_Query(
@@ -4430,7 +4452,7 @@ civicrm_relationship.is_permission_a_b = 0
       $skipPermissions,
       TRUE, $smartGroupCache,
       NULL, 'AND',
-      $apiEntity
+      $apiEntity, $primaryLocationOnly
     );
 
     //this should add a check for view deleted if permissions are enabled
@@ -4656,16 +4678,7 @@ civicrm_relationship.is_permission_a_b = 0
    * @return string
    */
   public static function appendAnyValueToSelect($selectClauses, $groupBy) {
-    $mysqlVersion = CRM_Core_DAO::singleValueQuery('SELECT VERSION()');
-    $sqlMode = explode(',', CRM_Core_DAO::singleValueQuery('SELECT @@sql_mode'));
-
-    // Disable only_full_group_by mode for lower sql versions.
-    if (version_compare($mysqlVersion, '5.7', '<') || (!empty($sqlMode) && !in_array('ONLY_FULL_GROUP_BY', $sqlMode))) {
-      $key = array_search('ONLY_FULL_GROUP_BY', $sqlMode);
-      unset($sqlMode[$key]);
-      CRM_Core_DAO::executeQuery("SET SESSION sql_mode = '" . implode(',', $sqlMode) . "'");
-    }
-    else {
+    if (!CRM_Utils_SQL::disableFullGroupByMode()) {
       $groupBy = array_map('trim', (array) $groupBy);
       $aggregateFunctions = '/(ROUND|AVG|COUNT|GROUP_CONCAT|SUM|MAX|MIN)\(/i';
       foreach ($selectClauses as $key => &$val) {
@@ -4678,6 +4691,27 @@ civicrm_relationship.is_permission_a_b = 0
     }
 
     return "SELECT " . implode(', ', $selectClauses) . " ";
+  }
+
+  /**
+   * For some special cases, where if non-aggregate ORDER BY columns are not present in GROUP BY
+   *  on full_group_by mode, then append the those missing columns to GROUP BY clause
+   * keyword to select fields not present in groupBy
+   *
+   * @param string $groupBy - GROUP BY clause where missing ORDER BY columns will be appended
+   * @param array $orderBys - ORDER BY sub-clauses
+   *
+   */
+  public static function getGroupByFromOrderBy(&$groupBy, $orderBys) {
+    if (CRM_Utils_SQL::disableFullGroupByMode()) {
+      foreach ($orderBys as $orderBy) {
+        $orderBy = str_replace(array(' DESC', ' ASC'), '', $orderBy); // remove sort syntax from ORDER BY clauses if present
+        // if ORDER BY column is not present in GROUP BY then append it to end
+        if (preg_match('/(MAX|MIN)\(/i', trim($orderBy)) !== 1 && !strstr($groupBy, $orderBy)) {
+          $groupBy .= ", {$orderBy}";
+        }
+      }
+    }
   }
 
   /**
@@ -4694,7 +4728,7 @@ civicrm_relationship.is_permission_a_b = 0
     $sqlMode = CRM_Core_DAO::singleValueQuery('SELECT @@sql_mode');
 
     //return if ONLY_FULL_GROUP_BY is not enabled.
-    if (!version_compare($mysqlVersion, '5.7', '<') && !empty($sqlMode) && in_array('ONLY_FULL_GROUP_BY', explode(',', $sqlMode))) {
+    if (CRM_Utils_SQL::supportsFullGroupBy() && !empty($sqlMode) && in_array('ONLY_FULL_GROUP_BY', explode(',', $sqlMode))) {
       $regexToExclude = '/(ROUND|AVG|COUNT|GROUP_CONCAT|SUM|MAX|MIN)\(/i';
       foreach ($selectClauses as $key => $val) {
         $aliasArray = preg_split('/ as /i', $val);

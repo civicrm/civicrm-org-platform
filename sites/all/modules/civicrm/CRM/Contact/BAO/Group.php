@@ -1016,8 +1016,16 @@ class CRM_Contact_BAO_Group extends CRM_Contact_DAO_Group {
         $values[$object->id]['created_by'] = "<a href='{$contactUrl}'>{$object->created_by}</a>";
       }
 
-      // get group contact count using Contact.GetCount API
-      $values[$object->id]['count'] = civicrm_api3('Contact', 'getcount', array('group' => $object->id));
+      // By default, we try to get a count of the contacts in each group
+      // to display to the user on the Manage Group page. However, if
+      // that will result in the cache being regenerated, then dipslay
+      // "unknown" instead to avoid a long wait for the user.
+      if (CRM_Contact_BAO_GroupContactCache::shouldGroupBeRefreshed($object->id)) {
+        $values[$object->id]['count'] = ts('unknown');
+      }
+      else {
+        $values[$object->id]['count'] = civicrm_api3('Contact', 'getcount', array('group' => $object->id));
+      }
     }
 
     // CRM-16905 - Sort by count cannot be done with sql
@@ -1073,9 +1081,9 @@ FROM   civicrm_group
 WHERE  id IN $groupIdString
 ";
     if ($parents) {
-      // group can have > 1 parent so parents may be comma separated list (eg. '1,2,5'). We just grab and match on 1st parent.
+      // group can have > 1 parent so parents may be comma separated list (eg. '1,2,5').
       $parentArray = explode(',', $parents);
-      $parent = $parentArray[0];
+      $parent = self::filterActiveGroups($parentArray);
       $args[2] = array($parent, 'Integer');
       $query .= " AND SUBSTRING_INDEX(parents, ',', 1) = %2";
     }
@@ -1091,7 +1099,7 @@ WHERE  id IN $groupIdString
     while ($dao->fetch()) {
       if ($dao->parents) {
         $parentArray = explode(',', $dao->parents);
-        $parent = $parentArray[0];
+        $parent = self::filterActiveGroups($parentArray);
         $tree[$parent][] = array(
           'id' => $dao->id,
           'title' => $dao->title,
@@ -1376,6 +1384,32 @@ WHERE {$whereClause}";
     }
 
     return $childGroupIDs;
+  }
+
+  /**
+   * Check parent groups and filter out the disabled ones.
+   *
+   * @param array $parentArray
+   *   Array of group Ids.
+   *
+   * @return int
+   */
+  public static function filterActiveGroups($parentArray) {
+    if (count($parentArray) > 1) {
+      $result = civicrm_api3('Group', 'get', array(
+        'id' => array('IN' => $parentArray),
+        'is_active' => TRUE,
+        'return' => 'id',
+      ));
+      $activeParentGroupIDs = CRM_Utils_Array::collect('id', $result['values']);
+      foreach ($parentArray as $key => $groupID) {
+        if (!array_key_exists($groupID, $activeParentGroupIDs)) {
+          unset($parentArray[$key]);
+        }
+      }
+    }
+
+    return reset($parentArray);
   }
 
 }

@@ -70,6 +70,8 @@ class CRM_Price_BAO_LineItem extends CRM_Price_DAO_LineItem {
     // unset entity table and entity id in $params
     // we never update the entity table and entity id during update mode
     if ($id) {
+      $entity_id = CRM_Utils_Array::value('entity_id', $params);
+      $entity_table = CRM_Utils_Array::value('entity_table', $params);
       unset($params['entity_id'], $params['entity_table']);
     }
     else {
@@ -102,6 +104,9 @@ class CRM_Price_BAO_LineItem extends CRM_Price_DAO_LineItem {
     }
 
     if ($id) {
+      // CRM-21281: Restore entity reference in case the post hook needs it
+      $lineItemBAO->entity_id = $entity_id;
+      $lineItemBAO->entity_table = $entity_table;
       CRM_Utils_Hook::post('edit', 'LineItem', $id, $lineItemBAO);
     }
     else {
@@ -300,8 +305,8 @@ WHERE li.contribution_id = %1";
       );
       $taxRates = CRM_Core_PseudoConstant::getTaxRates();
       if (isset($lineItems[$dao->id]['financial_type_id']) && array_key_exists($lineItems[$dao->id]['financial_type_id'], $taxRates)) {
-        // We are close to output/display here - so apply some rounding at output/display level - to not show Tax Rate in all 8 decimals
-        $lineItems[$dao->id]['tax_rate'] = round($taxRates[$lineItems[$dao->id]['financial_type_id']], 3);
+        // Cast to float so trailing zero decimals are removed for display.
+        $lineItems[$dao->id]['tax_rate'] = (float) $taxRates[$lineItems[$dao->id]['financial_type_id']];
       }
       else {
         // There is no Tax Rate associated with this Financial Type

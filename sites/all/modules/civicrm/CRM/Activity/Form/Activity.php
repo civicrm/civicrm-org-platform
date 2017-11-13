@@ -242,7 +242,7 @@ class CRM_Activity_Form_Activity extends CRM_Contact_Form_Task {
       if (CRM_Contact_Form_Search::isSearchContext($this->_context)) {
         $this->_context = 'search';
       }
-      elseif (!in_array($this->_context, array('dashlet', 'dashletFullscreen'))
+      elseif (!in_array($this->_context, array('dashlet', 'case', 'dashletFullscreen'))
         && $this->_currentlyViewedContactId
       ) {
         $this->_context = 'activity';
@@ -986,7 +986,7 @@ class CRM_Activity_Form_Activity extends CRM_Contact_Form_Task {
    */
   protected function processActivity(&$params) {
     $activityAssigned = array();
-    $activityContacts = CRM_Core_OptionGroup::values('activity_contacts', FALSE, FALSE, FALSE, NULL, 'name');
+    $activityContacts = CRM_Activity_BAO_ActivityContact::buildOptions('record_type_id', 'validate');
     $assigneeID = CRM_Utils_Array::key('Activity Assignees', $activityContacts);
     // format assignee params
     if (!CRM_Utils_Array::crmIsEmptyArray($params['assignee_contact_id'])) {

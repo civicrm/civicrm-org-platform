@@ -248,8 +248,6 @@ class CRM_Contribute_Form_Contribution extends CRM_Contribute_Form_AbstractEditP
       return;
     }
 
-    $this->assign('showCheckNumber', TRUE);
-
     $this->_fromEmails = CRM_Core_BAO_Email::getFromEmail();
 
     if (in_array('CiviPledge', CRM_Core_Config::singleton()->enableComponents) && !$this->_formType) {
@@ -474,7 +472,7 @@ class CRM_Contribute_Form_Contribution extends CRM_Contribute_Form_AbstractEditP
       }
     }
     $allPanes = array();
-    $recurJs = NULL;
+
     //tax rate from financialType
     $this->assign('taxRates', json_encode(CRM_Core_PseudoConstant::getTaxRates()));
     $this->assign('currencies', json_encode(CRM_Core_OptionGroup::values('currencies_enabled')));
@@ -484,6 +482,8 @@ class CRM_Contribute_Form_Contribution extends CRM_Contribute_Form_AbstractEditP
     $invoiceSettings = Civi::settings()->get('contribution_invoice_settings');
     $invoicing = CRM_Utils_Array::value('invoicing', $invoiceSettings);
     $this->assign('invoicing', $invoicing);
+
+    $buildRecurBlock = FALSE;
 
     // display tax amount on edit contribution page
     if ($invoicing && $this->_action & CRM_Core_Action::UPDATE && isset($this->_values['tax_amount'])) {
@@ -552,7 +552,8 @@ class CRM_Contribute_Form_Contribution extends CRM_Contribute_Form_AbstractEditP
       $paneNames[ts('Premium Information')] = 'Premium';
     }
 
-    if (CRM_Core_Payment_Form::buildPaymentForm($this, $this->_paymentProcessor, FALSE, TRUE, $this->getDefaultPaymentInstrumentId()) == TRUE) {
+    $this->payment_instrument_id = CRM_Utils_Array::value('payment_instrument_id', $defaults, $this->getDefaultPaymentInstrumentId());
+    if (CRM_Core_Payment_Form::buildPaymentForm($this, $this->_paymentProcessor, FALSE, TRUE, $this->payment_instrument_id) == TRUE) {
       if (!empty($this->_recurPaymentProcessors)) {
         $buildRecurBlock = TRUE;
         if ($this->_ppID) {
@@ -569,10 +570,10 @@ class CRM_Contribute_Form_Contribution extends CRM_Contribute_Form_AbstractEditP
           CRM_Contribute_Form_Contribution_Main::buildRecur($this);
           $this->setDefaults(array('is_recur' => 0));
           $this->assign('buildRecurBlock', TRUE);
-          $recurJs = array('onChange' => "buildRecurBlock( this.value ); return false;");
         }
       }
     }
+    $this->addPaymentProcessorSelect(FALSE, $buildRecurBlock);
 
     foreach ($paneNames as $name => $type) {
       $allPanes[$name] = $this->generatePane($type, $defaults);
@@ -651,91 +652,29 @@ class CRM_Contribute_Form_Contribution extends CRM_Contribute_Form_AbstractEditP
 
     $this->add('select', 'from_email_address', ts('Receipt From'), $this->_fromEmails);
 
-    $status = CRM_Contribute_PseudoConstant::contributionStatus();
-
-    // suppressing contribution statuses that are NOT relevant to pledges (CRM-5169)
-    $statusName = CRM_Contribute_PseudoConstant::contributionStatus(NULL, 'name');
+    $component = 'contribution';
+    if ($this->_id) {
+      $componentDetails = CRM_Contribute_BAO_Contribution::getComponentDetails($this->_id);
+      if (CRM_Utils_Array::value('membership', $componentDetails)) {
+        $component = 'membership';
+      }
+      elseif (CRM_Utils_Array::value('participant', $componentDetails)) {
+        $component = 'participant';
+      }
+    }
     if ($this->_ppID) {
-      foreach (array(
-                 'Cancelled',
-                 'Failed',
-                 'In Progress',
-               ) as $suppress) {
-        unset($status[CRM_Utils_Array::key($suppress, $statusName)]);
-      }
+      $component = 'pledge';
     }
-    elseif ((!$this->_ppID && $this->_id) || !$this->_id) {
-      $suppressFlag = FALSE;
-      if ($this->_id) {
-        $componentDetails = CRM_Contribute_BAO_Contribution::getComponentDetails($this->_id);
-        if (CRM_Utils_Array::value('membership', $componentDetails) || CRM_Utils_Array::value('participant', $componentDetails)) {
-          $suppressFlag = TRUE;
-        }
-      }
-      if (!$suppressFlag) {
-        foreach (array(
-                   'Overdue',
-                   'In Progress',
-                 ) as $suppress) {
-          unset($status[CRM_Utils_Array::key($suppress, $statusName)]);
-        }
-      }
-      else {
-        unset($status[CRM_Utils_Array::key('Overdue', $statusName)]);
-      }
-    }
+    $status = CRM_Contribute_BAO_Contribution_Utils::getContributionStatuses($component, $this->_id);
 
     // define the status IDs that show the cancellation info, see CRM-17589
     $cancelInfo_show_ids = array();
-    foreach (array_keys($statusName) as $status_id) {
+    foreach (array_keys($status) as $status_id) {
       if (CRM_Contribute_BAO_Contribution::isContributionStatusNegative($status_id)) {
         $cancelInfo_show_ids[] = "'$status_id'";
       }
     }
     $this->assign('cancelInfo_show_ids', implode(',', $cancelInfo_show_ids));
-
-    if ($this->_id) {
-      $contributionStatus = CRM_Core_DAO::getFieldValue('CRM_Contribute_DAO_Contribution', $this->_id, 'contribution_status_id');
-      $name = CRM_Utils_Array::value($contributionStatus, $statusName);
-      switch ($name) {
-        case 'Completed':
-          // [CRM-17498] Removing unsupported status change options.
-          unset($status[CRM_Utils_Array::key('Pending', $statusName)]);
-          unset($status[CRM_Utils_Array::key('Failed', $statusName)]);
-          unset($status[CRM_Utils_Array::key('Partially paid', $statusName)]);
-          unset($status[CRM_Utils_Array::key('Pending refund', $statusName)]);
-        case 'Cancelled':
-        case 'Chargeback':
-        case 'Refunded':
-          unset($status[CRM_Utils_Array::key('In Progress', $statusName)]);
-          unset($status[CRM_Utils_Array::key('Pending', $statusName)]);
-          unset($status[CRM_Utils_Array::key('Failed', $statusName)]);
-          break;
-
-        case 'Pending':
-        case 'In Progress':
-          unset($status[CRM_Utils_Array::key('Refunded', $statusName)]);
-          unset($status[CRM_Utils_Array::key('Chargeback', $statusName)]);
-          break;
-
-        case 'Failed':
-          foreach (array(
-                     'Pending',
-                     'Refunded',
-                     'Chargeback',
-                     'Completed',
-                     'In Progress',
-                     'Cancelled',
-                   ) as $suppress) {
-            unset($status[CRM_Utils_Array::key($suppress, $statusName)]);
-          }
-          break;
-      }
-    }
-    else {
-      unset($status[CRM_Utils_Array::key('Refunded', $statusName)]);
-      unset($status[CRM_Utils_Array::key('Chargeback', $statusName)]);
-    }
 
     $statusElement = $this->add('select', 'contribution_status_id',
       ts('Contribution Status'),
@@ -764,24 +703,11 @@ class CRM_Contribute_Form_Contribution extends CRM_Contribute_Form_AbstractEditP
     if ($this->_online) {
       $this->assign('hideCalender', TRUE);
     }
-    $checkNumber = $this->add('text', 'check_number', ts('Check Number'), $attributes['contribution_check_number']);
 
     $this->addDateTime('receipt_date', ts('Receipt Date'), FALSE, array('formatType' => 'activityDateTime'));
     $this->addDateTime('cancel_date', ts('Cancelled / Refunded Date'), FALSE, array('formatType' => 'activityDateTime'));
 
     $this->add('textarea', 'cancel_reason', ts('Cancellation / Refund Reason'), $attributes['cancel_reason']);
-    $this->add('text', 'refund_trxn_id', ts('Transaction ID for the refund payment'));
-    $element = $this->add('select',
-      'payment_processor_id',
-      ts('Payment Processor'),
-      $this->_processors,
-      NULL,
-      $recurJs
-    );
-
-    if ($this->_online) {
-      $element->freeze();
-    }
 
     $totalAmount = NULL;
     if (empty($this->_lineItems)) {
@@ -895,11 +821,10 @@ class CRM_Contribute_Form_Contribution extends CRM_Contribute_Form_AbstractEditP
 
     // if status is Cancelled freeze Amount, Payment Instrument, Check #, Financial Type,
     // Net and Fee Amounts are frozen in AdditionalInfo::buildAdditionalDetail
-    if ($this->_id && $this->_values['contribution_status_id'] == array_search('Cancelled', $statusName)) {
+    if ($this->_id && ($this->_values['contribution_status_id'] == CRM_Core_PseudoConstant::getKey('CRM_Contribute_BAO_Contribution', 'contribution_status_id', 'Cancelled'))) {
       if ($totalAmount) {
         $totalAmount->freeze();
       }
-      $checkNumber->freeze();
       $paymentInstrument->freeze();
       $trxnId->freeze();
       $financialType->freeze();
@@ -1423,7 +1348,7 @@ class CRM_Contribute_Form_Contribution extends CRM_Contribute_Form_AbstractEditP
     CRM_Contribute_Form_AdditionalInfo::buildPremium($this);
 
     $this->_fields = array();
-    $this->submit(array_merge($defaults, $params), $action, CRM_Utils_Array::value('pledge_payment_id', $params));
+    return $this->submit(array_merge($defaults, $params), $action, CRM_Utils_Array::value('pledge_payment_id', $params));
 
   }
 

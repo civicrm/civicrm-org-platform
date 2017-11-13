@@ -280,19 +280,6 @@ class CRM_Member_Form_Membership extends CRM_Member_Form {
       $defaults['receive_date_time'] = $currentTime;
     }
 
-    if (is_numeric($this->_memType)) {
-      $defaults['membership_type_id'] = array();
-      $defaults['membership_type_id'][0] = CRM_Core_DAO::getFieldValue('CRM_Member_DAO_MembershipType',
-        $this->_memType,
-        'member_of_contact_id',
-        'id'
-      );
-      $defaults['membership_type_id'][1] = $this->_memType;
-    }
-    else {
-      $defaults['membership_type_id'] = $this->_memType;
-    }
-
     $defaults['num_terms'] = 1;
 
     if (!empty($defaults['id'])) {
@@ -638,26 +625,8 @@ class CRM_Member_Form_Membership extends CRM_Member_Form {
         )
       );
 
-      $allowStatuses = array();
-      $statuses = CRM_Contribute_PseudoConstant::contributionStatus();
-      if ($this->_onlinePendingContributionId) {
-        $statusNames = CRM_Contribute_PseudoConstant::contributionStatus(NULL, 'name');
-        foreach ($statusNames as $val => $name) {
-          if (in_array($name, array(
-            'In Progress',
-            'Overdue',
-          ))
-          ) {
-            continue;
-          }
-          $allowStatuses[$val] = $statuses[$val];
-        }
-      }
-      else {
-        $allowStatuses = $statuses;
-      }
       $this->add('select', 'contribution_status_id',
-        ts('Payment Status'), $allowStatuses
+        ts('Payment Status'), CRM_Contribute_BAO_Contribution_Utils::getContributionStatuses('membership')
       );
       $this->add('text', 'check_number', ts('Check Number'),
         CRM_Core_DAO::getAttribute('CRM_Contribute_DAO_Contribution', 'check_number')
@@ -1117,7 +1086,7 @@ class CRM_Member_Form_Membership extends CRM_Member_Form {
     $params = $softParams = $ids = array();
 
     $allMemberStatus = CRM_Member_PseudoConstant::membershipStatus();
-    $allContributionStatus = CRM_Contribute_PseudoConstant::contributionStatus();
+    $allContributionStatus = CRM_Contribute_PseudoConstant::contributionStatus(NULL, 'name');
     $this->processBillingAddress();
 
     if ($this->_id) {
@@ -1232,19 +1201,8 @@ class CRM_Member_Form_Membership extends CRM_Member_Form {
       'start_date' => 'startDate',
       'end_date' => 'endDate',
     );
-    $dateModified = FALSE;
     foreach ($dateTypes as $dateField => $dateVariable) {
-      if (!empty($params['id'])) {
-        $membershipDate = CRM_Core_DAO::getFieldValue('CRM_Member_DAO_Membership', $params['id'], $dateField, 'id');
-        if ($membershipDate != date('Y-m-d', strtotime($formValues[$dateField]))) {
-          $dateModified = TRUE;
-        }
-      }
       $$dateVariable = CRM_Utils_Date::processDate($formValues[$dateField]);
-    }
-    //skip status calculation on update if none of the dates are modified.
-    if (!empty($params['id']) && empty($params['is_override']) && !$dateModified) {
-      $params['skipStatusCal'] = TRUE;
     }
 
     $memTypeNumTerms = empty($termsByType) ? CRM_Utils_Array::value('num_terms', $formValues) : NULL;

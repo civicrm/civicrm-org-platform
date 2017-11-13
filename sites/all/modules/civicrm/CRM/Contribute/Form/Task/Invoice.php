@@ -312,12 +312,14 @@ class CRM_Contribute_Form_Task_Invoice extends CRM_Contribute_Form_Task {
           $creditNoteId = $contribution->creditnote_id;
         }
       }
-      $invoiceNumber = CRM_Utils_Array::value('invoice_prefix', $prefixValue) . "" . $contribution->id;
+      if (!$contribution->invoice_number) {
+        $contribution->invoice_number = CRM_Contribute_BAO_Contribution::getInvoiceNumber($contribution->id);
+      }
 
       //to obtain due date for PDF invoice
       $contributionReceiveDate = date('F j,Y', strtotime(date($input['receive_date'])));
       $invoiceDate = date("F j, Y");
-      $dueDate = date('F j ,Y', strtotime($contributionReceiveDate . "+" . $prefixValue['due_date'] . "" . $prefixValue['due_date_period']));
+      $dueDate = date('F j, Y', strtotime($contributionReceiveDate . "+" . $prefixValue['due_date'] . "" . $prefixValue['due_date_period']));
 
       if ($input['component'] == 'contribute') {
         $lineItem = CRM_Price_BAO_LineItem::getLineItemsByContributionID($contribID);
@@ -425,7 +427,7 @@ class CRM_Contribute_Form_Task_Invoice extends CRM_Contribute_Form_Task {
         'component' => $input['component'],
         'id' => $contribution->id,
         'source' => $source,
-        'invoice_number' => $invoiceNumber,
+        'invoice_number' => $contribution->invoice_number,
         'invoice_id' => $contribution->invoice_id,
         'resourceBase' => $config->userFrameworkResourceURL,
         'defaultCurrency' => $config->defaultCurrency,
@@ -469,7 +471,7 @@ class CRM_Contribute_Form_Task_Invoice extends CRM_Contribute_Form_Task {
         $tplParams['creditnote_id'] = $creditNoteId;
       }
 
-      $pdfFileName = "{$invoiceNumber}.pdf";
+      $pdfFileName = $contribution->invoice_number . ".pdf";
       $sendTemplateParams = array(
         'groupName' => 'msg_tpl_workflow_contribution',
         'valueName' => 'contribution_invoice_receipt',
@@ -556,8 +558,6 @@ class CRM_Contribute_Form_Task_Invoice extends CRM_Contribute_Form_Task {
         $fileName = self::putFile($html, $pdfFileName);
         self::addActivities($subject, $contribution->contact_id, $fileName, $params);
       }
-
-      CRM_Core_DAO::setFieldValue('CRM_Contribute_DAO_Contribution', $contribution->id, 'invoice_number', $invoiceNumber);
       $invoiceTemplate->clearTemplateVars();
     }
 

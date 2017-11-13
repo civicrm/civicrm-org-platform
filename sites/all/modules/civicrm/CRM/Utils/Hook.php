@@ -2110,8 +2110,8 @@ abstract class CRM_Utils_Hook {
    *   );
    *   $angularModules['myBigAngularModule'] = array(
    *     'ext' => 'org.example.mymod',
-   *     'js' => array('js/part1.js', 'js/part2.js'),
-   *     'css' => array('css/myAngularModule.css'),
+   *     'js' => array('js/part1.js', 'js/part2.js', 'ext://other.ext.name/file.js', 'assetBuilder://dynamicAsset.js'),
+   *     'css' => array('css/myAngularModule.css', 'ext://other.ext.name/file.css', 'assetBuilder://dynamicAsset.css'),
    *     'partials' => array('partials/myBigAngularModule'),
    *     'requires' => array('otherModuleA', 'otherModuleB'),
    *     'basePages' => array('civicrm/a'),
@@ -2133,11 +2133,12 @@ abstract class CRM_Utils_Hook {
    *
    * @code
    * function example_civicrm_alterAngular($angular) {
-   *   $angular->add(ChangeSet::create('mychanges')
+   *   $changeSet = \Civi\Angular\ChangeSet::create('mychanges')
    *     ->alterHtml('~/crmMailing/EditMailingCtrl/2step.html', function(phpQueryObject $doc) {
    *       $doc->find('[ng-form="crmMailingSubform"]')->attr('cat-stevens', 'ts(\'wild world\')');
    *     })
    *   );
+   *   $angular->add($changeSet);
    * }
    * @endCode
    */
@@ -2379,6 +2380,20 @@ abstract class CRM_Utils_Hook {
    */
   public static function inboundSMS(&$message) {
     return self::singleton()->invoke(array('message'), $message, self::$_nullObject, self::$_nullObject, self::$_nullObject, self::$_nullObject, self::$_nullObject, 'civicrm_inboundSMS');
+  }
+
+  /**
+   * This hook is called to modify api params of EntityRef form field
+   *
+   * @param array $params
+   *
+   * @return mixed
+   */
+  public static function alterEntityRefParams(&$params, $formName) {
+    return self::singleton()->invoke(array('params', 'formName'), $params, $formName,
+      self::$_nullObject, self::$_nullObject, self::$_nullObject, self::$_nullObject,
+      'civicrm_alterEntityRefParams'
+    );
   }
 
 }

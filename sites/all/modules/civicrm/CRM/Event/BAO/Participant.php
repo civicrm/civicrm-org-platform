@@ -547,6 +547,7 @@ INNER JOIN  civicrm_participant participant ON ( line.entity_table  = 'civicrm_p
 INNER JOIN  civicrm_price_field_value value ON ( value.id = line.price_field_value_id )
 INNER JOIN  civicrm_price_field field       ON ( value.price_field_id = field.id )
      WHERE  participant.event_id = %1
+       AND  line.qty > 0
             {$statusIdClause}
             {$isTestClause}
             {$skipParticipantClause}";
@@ -648,7 +649,7 @@ GROUP BY  participant.event_id
           'title' => ts('Participant Note'),
           'name' => 'participant_note',
           'headerPattern' => '/(participant.)?note$/i',
-          'type' => 'text',
+          'data_type' => CRM_Utils_Type::T_TEXT,
         ),
       );
 
@@ -1788,16 +1789,20 @@ WHERE    civicrm_participant.contact_id = {$contactID} AND
     }
 
     // get primary participant id
-    $query = "SELECT participant_id FROM civicrm_participant_payment WHERE contribution_id = {$contributionId}";
-    $participantId = CRM_Core_DAO::singleValueQuery($query);
+    $query = "SELECT participant_id
+      FROM civicrm_participant cp
+      LEFT JOIN civicrm_participant_payment cpp ON cp.id = cpp.participant_id
+      WHERE cpp.contribution_id = {$contributionId}
+      AND cp.registered_by_id IS NULL";
+    $participantPayment = CRM_Core_DAO::executeQuery($query);
 
     // get additional participant ids (including cancelled)
-    if ($participantId) {
-      $ids = array_merge(array(
-        $participantId,
-      ), self::getAdditionalParticipantIds($participantId,
+    while ($participantPayment->fetch()) {
+      $ids = array_merge($ids, array_merge(array(
+        $participantPayment->participant_id,
+      ), self::getAdditionalParticipantIds($participantPayment->participant_id,
         $excludeCancelled
-      ));
+      )));
     }
 
     return $ids;

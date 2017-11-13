@@ -863,4 +863,51 @@ class CRM_Utils_Check_Component_Env extends CRM_Utils_Check_Component {
     return $messages;
   }
 
+  /**
+   * Check if environment is Production.
+   * @return array
+   */
+  public function checkEnvironment() {
+    $messages = array();
+
+    $environment = CRM_Core_Config::environment();
+    if ($environment != 'Production') {
+      $messages[] = new CRM_Utils_Check_Message(
+        __FUNCTION__,
+        ts('The environment of this CiviCRM instance is set to \'%1\'. Certain functionality like scheduled jobs has been disabled.', array(1 => $environment)),
+        ts('Non-Production Environment'),
+        \Psr\Log\LogLevel::ALERT,
+        'fa-bug'
+      );
+    }
+    return $messages;
+  }
+
+  /**
+   * Check that the resource URL points to the correct location.
+   * @return array
+   */
+  public function checkResourceUrl() {
+    $messages = array();
+    // Skip when run during unit tests, you can't check without a CMS.
+    if (CRM_Core_Config::singleton()->userFramework == 'UnitTests') {
+      return $messages;
+    }
+    // Does arrow.png exist where we expect it?
+    $arrowUrl = CRM_Core_Config::singleton()->userFrameworkResourceURL . 'packages/jquery/css/images/arrow.png';
+    $headers = get_headers($arrowUrl);
+    $fileExists = stripos($headers[0], "200 OK") ? 1 : 0;
+    if (!$fileExists) {
+      $messages[] = new CRM_Utils_Check_Message(
+        __FUNCTION__,
+        ts('The Resource URL is not set correctly. Please set the <a href="%1">CiviCRM Resource URL</a>.',
+          array(1 => CRM_Utils_System::url('civicrm/admin/setting/url', 'reset=1'))),
+        ts('Incorrect Resource URL'),
+        \Psr\Log\LogLevel::ERROR,
+        'fa-server'
+      );
+    }
+    return $messages;
+  }
+
 }
