@@ -106,10 +106,8 @@ class views_plugin_row_rss_fields extends views_plugin_row {
   }
 
   function render($row) {
-    static $row_index;
-    if (!isset($row_index)) {
-      $row_index = 0;
-    }
+    $row_index = $this->view->row_index;
+
     if (function_exists('rdf_get_namespaces')) {
       // Merge RDF namespaces in the XML namespaces in case they are used
       // further in the RSS content.
@@ -144,8 +142,6 @@ class views_plugin_row_rss_fields extends views_plugin_row {
       'value' => $item_guid,
       'attributes' => array('isPermaLink' => $guid_is_permalink_string),
     );
-
-    $row_index++;
 
     foreach ($item->elements as $element) {
       if (isset($element['namespace'])) {
