@@ -333,11 +333,13 @@ function _extdir_compose_email($tag, $extension, $errorMessages) {
     }
     $body .= "\n" . t('You will need to correct these errors before we can accept this release.') . "\n"
       . "\n"
-      . t('Further help is available in the wiki at @url.',
-        array('@url' => 'http://wiki.civicrm.org/confluence/display/CRMDOC/Publish+an+Extension')) . "\n"
+      . t('Further help is available in the developer guide at @url.',
+        array('@url' => 'https://docs.civicrm.org/dev/en/latest/extensions/publish/')) . "\n"
       . "\n"
-      . t('You can also request help in the Extensions community forum at @url.',
-        array('@url' => 'http://forum.civicrm.org/index.php/board,57.0.html')) . "\n";
+      . t('You can also request help on Mattermost at @url.',
+        array('@url' => 'https://chat.civicrm.org/civicrm/channels/extensions')) . "\n"
+      . "\n" . t("If you no longer wish to publish this release, deleting the @tag tag from your extension's repository will stop these notices.",
+        array('@tag' => $tag)) . "\n";
   }
   else {
     $body .= t('Your release was successfully processed and is now live on the civicrm.org extensions directory.') . "\n";
