@@ -251,15 +251,11 @@ function _extdir_pages_filters_parse($filterExpr) {
 
   // If a "ver" param is provided, override the default filter. The override could be empty (opt-out).
   if (array_key_exists('ver', $args)) {
-    $versionParts = explode('.', $args['ver']);
-    $termName = sprintf('CiviCRM %d.%d', $versionParts[0], $versionParts[1]);
-    $terms = taxonomy_get_term_by_name($termName, 'extension_civicrm_compatibility');
-    if (empty($terms)) {
+    $termIds = _extdir_pages_version_tids($args['ver']);
+    if (empty($termIds)) {
       $filters['field_extension_release_civicrm_tid'] = -1;
     } else {
-      foreach ($terms as $term) {
-        $filters['field_extension_release_civicrm_tid'] = $term->tid;
-      }
+      $filters['field_extension_release_civicrm_tid'] = $termIds;
     }
   }
 
@@ -283,6 +279,55 @@ function _extdir_pages_filters_parse($filterExpr) {
   }
 
   return $filters;
+}
+
+/**
+ * Given a user's version of CiviCRM, determine the taxonomy filters that
+ * will return compatible extensions.
+ *
+ * Note that the interpretation changed in v5:
+ * - For versions <=4, compatibility tests are exact. Thus,
+ *   a site running '4.6.20' would only see extensions
+ *   that were tagged `<ver>4.6</ver>`.
+ * - For version 5, forward-compatibility is assumed.
+ *   Thus, a site running '5.1.0' would see extensions
+ *   that were tagged as '<ver>5.0</ver>' or '<ver>5.1</ver>'.
+ *
+ * @param string $ver
+ *   The version of CiviCRM that the user is running.
+ *   Ex: '4.6.2', '4.7.10', or '5.2.alpha1'.
+ * @return array
+ *   List of compatible versions.
+ *   Zero or more Drupal taxonomy term IDs.
+ */
+function _extdir_pages_version_tids($ver) {
+  $termNames = array(); // Ex: array('CiviCRM 4.7', 'CiviCRM 5.0', 'CiviCRM 5.1').
+  if (version_compare($ver, '5', '<')) {
+    list ($a, $b) = explode('.', $ver);
+    $termNames[] = sprintf('CiviCRM %d.%d', $a, $b);
+  }
+  elseif (version_compare($ver, '6', '<')) {
+    // The "5.$Y" series is really a continuation of "4.7.$Z".
+    $termNames[] = 'CiviCRM 4.7';
+    $i = 0;
+    while (version_compare("5.$i.alpha", $ver, '<=')) {
+      $termNames[] = "CiviCRM 5.$i";
+      $i++;
+    }
+  }
+  else {
+    throw new \RuntimeException("Failed to filter by unrecognized CiviCRM version");
+  }
+
+  $termIds = array();
+  foreach ($termNames as $termName) {
+    $terms = taxonomy_get_term_by_name($termName, 'extension_civicrm_compatibility');
+    foreach ($terms as $term) {
+      $termIds[] = $term->tid;
+    }
+  }
+
+  return $termIds;
 }
 
 /**
