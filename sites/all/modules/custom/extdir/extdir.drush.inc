@@ -252,8 +252,8 @@ function _extdir_create_release($extension, $version, $giturl, $tag) {
   else {
     $release = NULL;
     if ($info == FALSE) {
-      if (strpos($giturl, 'https://github.com') === FALSE) {
-        $errorMessages[] = t('We are unable to automatically process releases if your extension is not on github.');
+      if (strpos($giturl, 'https://github.com') === FALSE && strpos($giturl, 'https://lab.civicrm.org/extensions') === FALSE) {
+        $errorMessages[] = t('We are unable to automatically process releases if your extension is not on lab.civicrm.org/extensions or github.com.');
         return array($errorMessages, $release);
       }
       else {
@@ -394,14 +394,15 @@ function _extdir_get_maintainers($extension) {
  * Reads a single file from a git repository at a given release
  * Returns either the file content or false on failure
  * It WILL fail if the repository does not allow such fetching
- *   - as of April 2014, only guthub is supported
+ *   - only lab.civicrm.org/extensions and github.com are supported
  *   - other git repos might be supported with the git archive command but this requires server components
  */
 function _extdir_git_getfile($giturl, $tag, $file) {
-  if (preg_match(';(https|git)://github.com/;', $giturl)) {
+  if (preg_match(';(https|git)://(github.com|lab.civicrm.org)/;', $giturl)) {
     $giturl = rtrim($giturl, '/');
     $giturl = preg_replace(':\.git$:', '', $giturl);
     $giturl = preg_replace(';(https|git)://github.com/;', 'https://raw.githubusercontent.com/', $giturl);
+    $giturl = preg_replace(';(https|git)://lab.civicrm.org/extensions/(.*);', 'https://lab.civicrm.org/extensions/$2/raw', $giturl);
     $giturl .= "/$tag/$file";
     return file_get_contents($giturl);
   }
