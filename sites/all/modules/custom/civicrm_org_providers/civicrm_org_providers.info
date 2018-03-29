@@ -1,4 +1,0 @@
-name = CiviCRM providers list
-description =  Code to support providers list (badges for providers, block to update listings, etc.)
-package = civicrm.org custom modules
-core = 7.x

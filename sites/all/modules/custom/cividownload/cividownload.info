@@ -1,8 +1,0 @@
-; $Id$
- 
-name = CiviCRM Downloader
-description = Module to download CiviCRM and then redirect to donation page
-package = CiviCRM
-core = 7.x
-  
-files[] = cividownload.module
