@@ -2,7 +2,7 @@
  +--------------------------------------------------------------------+
  | CiviCRM version 4.7                                                |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2017                                |
+ | Copyright CiviCRM LLC (c) 2004-2018                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -181,10 +181,6 @@
       }
     });
     $(function($) {
-      $('.button').click(function() {
-        // no unsaved changes confirmation dialogs
-        $('[data-warn-changes=true]').attr('data-warn-changes', 'false');
-      });
 
       var sourceUrl = {/literal}'{$sourceUrl}'{literal};
       var context   = {/literal}'{$context}'{literal};

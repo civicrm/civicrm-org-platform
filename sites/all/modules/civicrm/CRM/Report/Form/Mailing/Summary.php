@@ -3,7 +3,7 @@
  +--------------------------------------------------------------------+
  | CiviCRM version 4.7                                                |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2017                                |
+ | Copyright CiviCRM LLC (c) 2004-2018                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2017
+ * @copyright CiviCRM LLC (c) 2004-2018
  */
 class CRM_Report_Form_Mailing_Summary extends CRM_Report_Form {
 
@@ -85,12 +85,12 @@ class CRM_Report_Form_Mailing_Summary extends CRM_Report_Form {
           //'operator' => 'like',
           'default' => 1,
         ),
-        'mailing_name' => array(
-          'name' => 'name',
+        'mailing_id' => array(
+          'name' => 'id',
           'title' => ts('Mailing Name'),
           'operatorType' => CRM_Report_Form::OP_MULTISELECT,
-          'type' => CRM_Utils_Type::T_STRING,
-          'options' => self::mailing_select(),
+          'type' => CRM_Utils_Type::T_INT,
+          'options' => CRM_Mailing_BAO_Mailing::getMailingsList(),
           'operator' => 'like',
         ),
         'mailing_subject' => array(
@@ -117,9 +117,11 @@ class CRM_Report_Form_Mailing_Summary extends CRM_Report_Form {
       'fields' => array(
         'start_date' => array(
           'title' => ts('Start Date'),
+          'dbAlias' => 'MIN(mailing_job_civireport.start_date)',
         ),
         'end_date' => array(
           'title' => ts('End Date'),
+          'dbAlias' => 'MAX(mailing_job_civireport.end_date)',
         ),
       ),
       'filters' => array(
@@ -244,7 +246,7 @@ class CRM_Report_Form_Mailing_Summary extends CRM_Report_Form {
       'fields' => array(
         'click_count' => array(
           'name' => 'event_queue_id',
-          'title' => ts('Clicks'),
+          'title' => ts('Unique Clicks'),
         ),
         'CTR' => array(
           'title' => ts('Click through Rate'),
@@ -313,24 +315,6 @@ class CRM_Report_Form_Mailing_Summary extends CRM_Report_Form {
       );
     }
     parent::__construct();
-  }
-
-  /**
-   * @return array
-   */
-  public function mailing_select() {
-
-    $data = array();
-
-    $mailing = new CRM_Mailing_BAO_Mailing();
-    $query = "SELECT name FROM civicrm_mailing WHERE sms_provider_id IS NULL";
-    $mailing->query($query);
-
-    while ($mailing->fetch()) {
-      $data[CRM_Core_DAO::escapeString($mailing->name)] = $mailing->name;
-    }
-
-    return $data;
   }
 
   public function preProcess() {
@@ -545,7 +529,7 @@ class CRM_Report_Form_Mailing_Summary extends CRM_Report_Form {
         'civicrm_mailing_event_bounce_bounce_count' => ts('Bounce'),
         'civicrm_mailing_event_opened_open_count' => ts('Total Opens'),
         'civicrm_mailing_event_opened_unique_open_count' => ts('Unique Opens'),
-        'civicrm_mailing_event_trackable_url_open_click_count' => ts('Clicks'),
+        'civicrm_mailing_event_trackable_url_open_click_count' => ts('Unique Clicks'),
         'civicrm_mailing_event_unsubscribe_unsubscribe_count' => ts('Unsubscribe'),
       ),
       'rate' => array(

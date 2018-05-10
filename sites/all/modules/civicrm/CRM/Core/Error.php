@@ -3,7 +3,7 @@
  +--------------------------------------------------------------------+
  | CiviCRM version 4.7                                                |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2017                                |
+ | Copyright CiviCRM LLC (c) 2004-2018                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -30,7 +30,7 @@
  * PEAR_ErrorStack and use that framework
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2017
+ * @copyright CiviCRM LLC (c) 2004-2018
  */
 
 require_once 'PEAR/ErrorStack.php';
@@ -106,7 +106,7 @@ class CRM_Core_Error extends PEAR_ErrorStack {
    * @param bool $throwPEAR_Error
    * @param string $stackClass
    *
-   * @return object
+   * @return CRM_Core_Error
    */
   public static function &singleton($package = NULL, $msgCallback = FALSE, $contextCallback = FALSE, $throwPEAR_Error = FALSE, $stackClass = 'PEAR_ErrorStack') {
     if (self::$_singleton === NULL) {
@@ -148,6 +148,9 @@ class CRM_Core_Error extends PEAR_ErrorStack {
       }
       $message = implode($separator, $message);
       return $message;
+    }
+    elseif (is_a($error, 'Civi\Payment\Exception\PaymentProcessorException')) {
+      return $error->getMessage();
     }
     return NULL;
   }
