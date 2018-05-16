@@ -204,6 +204,9 @@ class CRM_Export_BAO_Export {
     }
 
     if (!empty($groupBy)) {
+      if (!Civi::settings()->get('searchPrimaryDetailsOnly')) {
+        CRM_Core_DAO::disableFullGroupByMode();
+      }
       $groupBy = CRM_Contact_BAO_Query::getGroupByFromSelectColumns($query->_select, $groupBy);
     }
 
@@ -1005,9 +1008,11 @@ INSERT INTO {$componentTable} SELECT distinct gc.contact_id FROM civicrm_group_c
       $sql = "DROP TABLE IF EXISTS {$exportTempTable}";
       CRM_Core_DAO::executeQuery($sql);
 
+      CRM_Core_DAO::reenableFullGroupByMode(); 
       CRM_Utils_System::civiExit();
     }
     else {
+      CRM_Core_DAO::reenableFullGroupByMode();
       throw new CRM_Core_Exception(ts('No records to export'));
     }
   }
