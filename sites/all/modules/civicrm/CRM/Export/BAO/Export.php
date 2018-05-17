@@ -1007,8 +1007,7 @@ INSERT INTO {$componentTable} SELECT distinct gc.contact_id FROM civicrm_group_c
       // delete the export temp table and component table
       $sql = "DROP TABLE IF EXISTS {$exportTempTable}";
       CRM_Core_DAO::executeQuery($sql);
-
-      CRM_Core_DAO::reenableFullGroupByMode(); 
+      CRM_Core_DAO::reenableFullGroupByMode();
       CRM_Utils_System::civiExit();
     }
     else {
@@ -1314,7 +1313,6 @@ FROM   $tableName
 INSERT INTO $tableName $sqlColumnString
 VALUES $sqlValueString
 ";
-
     CRM_Core_DAO::executeQuery($sql);
   }
 
