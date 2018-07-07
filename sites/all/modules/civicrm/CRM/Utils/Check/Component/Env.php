@@ -1,7 +1,7 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
  | Copyright CiviCRM LLC (c) 2004-2018                                |
  +--------------------------------------------------------------------+
@@ -117,6 +117,27 @@ class CRM_Utils_Check_Component_Env extends CRM_Utils_Check_Component {
       );
     }
 
+    return $messages;
+  }
+
+  /**
+   * @return array
+   */
+  public function checkPhpEcrypt() {
+    $messages = array();
+    $test_pass = 'iAmARandomString';
+    $encrypted_test_pass = CRM_Utils_Crypt::encrypt($test_pass);
+    if ($encrypted_test_pass == base64_encode($test_pass)) {
+      $messages[] = new CRM_Utils_Check_Message(
+        __FUNCTION__,
+        ts('Your PHP does not include the recommended encryption functions. Some passwords will not be stored encrypted, and if you have recently upgraded from a PHP that does include these functions, your encrypted passwords will not be decrypted correctly. If you are using PHP 7.0 or earlier, you probably want to include the "%1" extension.',
+          array('1' => 'mcrypt')
+        ),
+        ts('PHP Missing Extension "mcrypt"'),
+        \Psr\Log\LogLevel::WARNING,
+        'fa-server'
+      );
+    }
     return $messages;
   }
 

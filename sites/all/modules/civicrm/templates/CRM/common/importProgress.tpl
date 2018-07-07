@@ -1,6 +1,6 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
  | Copyright CiviCRM LLC (c) 2004-2018                                |
  +--------------------------------------------------------------------+
@@ -66,7 +66,7 @@ CRM.$(function($) {
     });
     $("#importProgressBar" ).progressbar({value:0});
     $("#importProgressBar").show( );
-    loop = window.setInterval(setIntermediate, 5)
+    loop = window.setInterval(setIntermediate, 5000)
   }
 });
 </script>

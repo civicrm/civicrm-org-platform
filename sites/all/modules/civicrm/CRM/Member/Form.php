@@ -1,7 +1,7 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
  | Copyright CiviCRM LLC (c) 2004-2018                                |
  +--------------------------------------------------------------------+
@@ -83,6 +83,13 @@ class CRM_Member_Form extends CRM_Contribute_Form_AbstractEditPayment {
    * @var array
    */
   public $_priceSet;
+
+  /**
+   * Explicitly declare the entity api name.
+   */
+  public function getDefaultEntity() {
+    return 'Membership';
+  }
 
   /**
    * Values submitted to the form, processed along the way.

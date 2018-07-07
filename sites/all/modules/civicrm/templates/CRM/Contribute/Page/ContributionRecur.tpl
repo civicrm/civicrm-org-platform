@@ -1,6 +1,6 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
  | Copyright CiviCRM LLC (c) 2004-2018                                |
  +--------------------------------------------------------------------+
@@ -62,6 +62,31 @@
           <div class="crm-submit-buttons"><a class="button cancel crm-form-submit" href="{crmURL p='civicrm/contact/view' q='action=browse&selectedChild=contribute'}">{ts}Done{/ts}</a></div>
         </div>
     {/if}
+
+  <script type="text/javascript">
+    var recurContribID = {$recur.id};
+    var contactID = {$contactId};
+    {literal}
+    CRM.$(function($) {
+      CRM.loadPage(
+        CRM.url(
+          'civicrm/contribute/contributionrecur-payments',
+          {
+            reset: 1,
+            id: recurContribID,
+            cid: contactID
+          },
+          'back'
+        ),
+        {
+          target : '#recurring-contribution-payments',
+          dialog : false
+        }
+      );
+    });
+    {/literal}
+  </script>
+  <div id="recurring-contribution-payments"></div>
 {/if}
 {if $recurRows}
     {strip}

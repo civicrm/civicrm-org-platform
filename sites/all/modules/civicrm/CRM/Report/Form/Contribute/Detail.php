@@ -1,7 +1,7 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
  | Copyright CiviCRM LLC (c) 2004-2018                                |
  +--------------------------------------------------------------------+
@@ -43,6 +43,8 @@ class CRM_Report_Form_Contribute_Detail extends CRM_Report_Form {
     'Individual',
     'Contribution',
   );
+
+  protected $groupConcatTested = TRUE;
 
   /**
    * This report has been optimised for group filtering.
@@ -221,6 +223,13 @@ class CRM_Report_Form_Contribute_Detail extends CRM_Report_Form {
           'payment_instrument_id' => array('title' => ts('Payment Method')),
           'receive_date' => array('title' => ts('Date Received')),
         ),
+        'group_bys' => array(
+          'contribution_id' => array(
+            'name' => 'id',
+            'required' => TRUE,
+            'title' => ts('Contribution'),
+          ),
+        ),
         'grouping' => 'contri-fields',
       ),
       'civicrm_contribution_soft' => array(
@@ -243,7 +252,6 @@ class CRM_Report_Form_Contribute_Detail extends CRM_Report_Form {
         'fields' => array(
           'card_type_id' => array(
             'title' => ts('Credit Card Type'),
-            'dbAlias' => 'GROUP_CONCAT(financial_trxn_civireport.card_type_id SEPARATOR ",")',
           ),
         ),
         'filters' => array(
@@ -332,30 +340,6 @@ class CRM_Report_Form_Contribute_Detail extends CRM_Report_Form {
     parent::__construct();
   }
 
-  public function preProcess() {
-    parent::preProcess();
-  }
-
-  public function select() {
-    $this->_columnHeaders = array();
-
-    parent::select();
-  }
-
-  public function orderBy() {
-    parent::orderBy();
-
-    // please note this will just add the order-by columns to select query, and not display in column-headers.
-    // This is a solution to not throw fatal errors when there is a column in order-by, not present in select/display columns.
-    foreach ($this->_orderByFields as $orderBy) {
-      if (!array_key_exists($orderBy['name'], $this->_params['fields']) &&
-        empty($orderBy['section']) && (strpos($this->_select, $orderBy['dbAlias']) === FALSE)
-      ) {
-        $this->_select .= ", {$orderBy['dbAlias']} as {$orderBy['tplField']}";
-      }
-    }
-  }
-
   /**
    * Set the FROM clause for the report.
    */
@@ -379,11 +363,6 @@ class CRM_Report_Form_Contribute_Detail extends CRM_Report_Form {
                          ON contribution_soft_civireport.contribution_id = {$this->_aliases['civicrm_contribution']}.id";
     }
     $this->appendAdditionalFromJoins();
-  }
-
-  public function groupBy() {
-    $groupBy = array("{$this->_aliases['civicrm_contact']}.id", "{$this->_aliases['civicrm_contribution']}.id");
-    $this->_groupBy = CRM_Contact_BAO_Query::getGroupByFromSelectColumns($this->_selectClauses, $groupBy);
   }
 
   /**
@@ -499,26 +478,12 @@ GROUP BY {$this->_aliases['civicrm_contribution']}.currency";
    * Soft credit functionality is not currently unit tested for this report.
    */
   public function postProcess() {
+    // @todo in order to make this report testable we need to remove this function override in favour of the
+    // functions called by the reportTemplate.getrows api - this requires a bit of tidy up!
     // get the acl clauses built before we assemble the query
     $this->buildACLClause($this->_aliases['civicrm_contact']);
 
     $this->beginPostProcess();
-    // CRM-18312 - display soft_credits and soft_credits_for column
-    // when 'Contribution or Soft Credit?' column is not selected
-    if (empty($this->_params['fields']['contribution_or_soft'])) {
-      $this->_params['fields']['contribution_or_soft'] = 1;
-      $this->noDisplayContributionOrSoftColumn = TRUE;
-    }
-
-    if (CRM_Utils_Array::value('contribution_or_soft_value', $this->_params) ==
-      'contributions_only' &&
-      !empty($this->_params['fields']['soft_credit_type_id'])
-    ) {
-      unset($this->_params['fields']['soft_credit_type_id']);
-      if (!empty($this->_params['soft_credit_type_id_value'])) {
-        $this->_params['soft_credit_type_id_value'] = array();
-      }
-    }
 
     // 1. use main contribution query to build temp table 1
     $sql = $this->buildQuery();
@@ -584,34 +549,9 @@ UNION ALL
     $this->addToDeveloperTab($sql);
     CRM_Core_DAO::executeQuery($sql);
 
-    // 5. Re-construct order-by to make sense for final query on temp3 table
-    $orderBy = '';
-    if (!empty($this->_orderByArray)) {
-      $aliases = array_flip($this->_aliases);
-      $orderClause = array();
-      foreach ($this->_orderByArray as $clause) {
-        list($alias, $rest) = explode('.', $clause);
-        // CRM-17280 -- In case, we are ordering by custom fields
-        // modify $rest to match the alias used for them in temp3 table
-        $grp = new CRM_Core_DAO_CustomGroup();
-        $grp->table_name = $aliases[$alias];
-        if ($grp->find()) {
-          list($fld, $order) = explode(' ', $rest);
-          foreach ($this->_columns[$aliases[$alias]]['fields'] as $fldName => $value) {
-            if ($value['name'] == $fld) {
-              $fld = $fldName;
-            }
-          }
-          $rest = "{$fld} {$order}";
-        }
-        $orderClause[] = $aliases[$alias] . "_" . $rest;
-      }
-      $orderBy = (!empty($orderClause)) ? "ORDER BY " . implode(', ', $orderClause) : '';
-    }
-
     // 6. show result set from temp table 3
     $rows = array();
-    $sql = "SELECT * FROM civireport_contribution_detail_temp3 {$orderBy}";
+    $sql = "SELECT * FROM civireport_contribution_detail_temp3 $this->_orderBy";
     $this->buildRows($sql, $rows);
 
     // format result set.
@@ -621,6 +561,33 @@ UNION ALL
     $this->doTemplateAssignment($rows);
     // do print / pdf / instance stuff if needed
     $this->endPostProcess($rows);
+  }
+
+  /**
+   * Shared function for preliminary processing.
+   *
+   * This is called by the api / unit tests and the form layer and is
+   * the right place to do 'initial analysis of input'.
+   */
+  public function beginPostProcessCommon() {
+    // CRM-18312 - display soft_credits and soft_credits_for column
+    // when 'Contribution or Soft Credit?' column is not selected
+    if (empty($this->_params['fields']['contribution_or_soft'])) {
+      $this->_params['fields']['contribution_or_soft'] = 1;
+      $this->noDisplayContributionOrSoftColumn = TRUE;
+    }
+
+    if (CRM_Utils_Array::value('contribution_or_soft_value', $this->_params) ==
+      'contributions_only' &&
+      (!empty($this->_params['fields']['soft_credit_type_id'])
+      || !empty($this->_params['soft_credit_type_id_value']))
+    ) {
+      unset($this->_params['fields']['soft_credit_type_id']);
+      if (!empty($this->_params['soft_credit_type_id_value'])) {
+        $this->_params['soft_credit_type_id_value'] = array();
+        CRM_Core_Session::setStatus(ts('Is it not possible to filter on soft contribution type when not including soft credits.'));
+      }
+    }
   }
 
   /**
@@ -750,7 +717,7 @@ UNION ALL
         array_key_exists('civicrm_contribution_contribution_id', $row)
       ) {
         $query = "
-SELECT civicrm_contact_id, civicrm_contact_sort_name, civicrm_contribution_total_amount, civicrm_contribution_currency
+SELECT civicrm_contact_id, civicrm_contact_sort_name, civicrm_contribution_total_amount_sum, civicrm_contribution_currency
 FROM   civireport_contribution_detail_temp2
 WHERE  civicrm_contribution_contribution_id={$row['civicrm_contribution_contribution_id']}";
         $this->addToDeveloperTab($query);
@@ -762,7 +729,7 @@ WHERE  civicrm_contribution_contribution_id={$row['civicrm_contribution_contribu
             $dao->civicrm_contact_id);
           $string = $string . ($string ? $separator : '') .
             "<a href='{$url}'>{$dao->civicrm_contact_sort_name}</a> " .
-            CRM_Utils_Money::format($dao->civicrm_contribution_total_amount, $dao->civicrm_contribution_currency);
+            CRM_Utils_Money::format($dao->civicrm_contribution_total_amount_sum, $dao->civicrm_contribution_currency);
         }
         $rows[$rowNum]['civicrm_contribution_soft_credits'] = $string;
       }
