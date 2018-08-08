@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2017                                |
+ | Copyright CiviCRM LLC (c) 2004-2018                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -404,7 +404,7 @@
             return;
           }
 
-          var participantId  = "{/literal}{$participantId}{literal}";
+          var participantId  = {/literal}{$participantId|@json_encode}{literal};
 
           if (participantId) {
             dataUrl += '&participantId=' + participantId;

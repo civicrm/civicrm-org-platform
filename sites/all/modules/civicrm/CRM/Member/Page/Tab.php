@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2017                                |
+ | Copyright CiviCRM LLC (c) 2004-2018                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2017
+ * @copyright CiviCRM LLC (c) 2004-2018
  * $Id$
  *
  */
@@ -156,11 +156,14 @@ class CRM_Member_Page_Tab extends CRM_Core_Page {
         );
       }
 
-      //does membership have auto renew CRM-7137.
-      if (!empty($membership[$dao->id]['contribution_recur_id']) &&
-        !CRM_Member_BAO_Membership::isSubscriptionCancelled($membership[$dao->id]['membership_id'])
-      ) {
-        $membership[$dao->id]['auto_renew'] = 1;
+      // Display Auto-renew status on page (0=disabled, 1=enabled, 2=enabled, but error
+      if (!empty($membership[$dao->id]['contribution_recur_id'])) {
+        if (CRM_Member_BAO_Membership::isSubscriptionCancelled($membership[$dao->id]['membership_id'])) {
+          $membership[$dao->id]['auto_renew'] = 2;
+        }
+        else {
+          $membership[$dao->id]['auto_renew'] = 1;
+        }
       }
       else {
         $membership[$dao->id]['auto_renew'] = 0;
@@ -261,7 +264,7 @@ class CRM_Member_Page_Tab extends CRM_Core_Page {
    */
   public function edit() {
     // set https for offline cc transaction
-    $mode = CRM_Utils_Request::retrieve('mode', 'String', $this);
+    $mode = CRM_Utils_Request::retrieve('mode', 'Alphanumeric', $this);
     if ($mode == 'test' || $mode == 'live') {
       CRM_Utils_System::redirectToSSL();
     }
@@ -303,7 +306,7 @@ class CRM_Member_Page_Tab extends CRM_Core_Page {
   }
 
   public function preProcess() {
-    $context = CRM_Utils_Request::retrieve('context', 'String', $this);
+    $context = CRM_Utils_Request::retrieve('context', 'Alphanumeric', $this);
     $this->_action = CRM_Utils_Request::retrieve('action', 'String', $this, FALSE, 'browse');
     $this->_id = CRM_Utils_Request::retrieve('id', 'Positive', $this);
 
@@ -387,7 +390,7 @@ class CRM_Member_Page_Tab extends CRM_Core_Page {
    * @param int $contactId
    */
   public static function setContext(&$form, $contactId = NULL) {
-    $context = CRM_Utils_Request::retrieve('context', 'String', $form, FALSE, 'search');
+    $context = CRM_Utils_Request::retrieve('context', 'Alphanumeric', $form, FALSE, 'search');
 
     $qfKey = CRM_Utils_Request::retrieve('key', 'String', $form);
 

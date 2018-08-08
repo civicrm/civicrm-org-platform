@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2017                                |
+ | Copyright CiviCRM LLC (c) 2004-2018                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2017
+ * @copyright CiviCRM LLC (c) 2004-2018
  */
 
 /**
@@ -134,7 +134,7 @@ class CRM_Core_BAO_Address extends CRM_Core_DAO_Address {
    *
    * @return CRM_Core_BAO_Address|null
    */
-  public static function add(&$params, $fixAddress) {
+  public static function add(&$params, $fixAddress = FALSE) {
 
     $address = new CRM_Core_DAO_Address();
     $checkPermissions = isset($params['check_permissions']) ? $params['check_permissions'] : TRUE;
@@ -153,7 +153,7 @@ class CRM_Core_BAO_Address extends CRM_Core_DAO_Address {
     }
 
     // (prevent chaining 1 and 3) CRM-21214
-    if (CRM_Utils_Array::value('master_id', $params)) {
+    if (isset($params['master_id']) && !CRM_Utils_System::isNull($params['master_id'])) {
       self::fixSharedAddress($params);
     }
 
@@ -342,51 +342,46 @@ class CRM_Core_BAO_Address extends CRM_Core_DAO_Address {
       $params['country'] = CRM_Core_PseudoConstant::country($params['country_id']);
     }
 
-    $config = CRM_Core_Config::singleton();
-
     $asp = Civi::settings()->get('address_standardization_provider');
     // clean up the address via USPS web services if enabled
     if ($asp === 'USPS' &&
       $params['country_id'] == 1228
     ) {
       CRM_Utils_Address_USPS::checkAddress($params);
+    }
+    // do street parsing again if enabled, since street address might have changed
+    $parseStreetAddress = CRM_Utils_Array::value(
+      'street_address_parsing',
+      CRM_Core_BAO_Setting::valueOptions(
+        CRM_Core_BAO_Setting::SYSTEM_PREFERENCES_NAME,
+        'address_options'
+      ),
+      FALSE
+    );
 
-      // do street parsing again if enabled, since street address might have changed
-      $parseStreetAddress = CRM_Utils_Array::value(
-        'street_address_parsing',
-        CRM_Core_BAO_Setting::valueOptions(
-          CRM_Core_BAO_Setting::SYSTEM_PREFERENCES_NAME,
-          'address_options'
-        ),
-        FALSE
-      );
-
-      if ($parseStreetAddress && !empty($params['street_address'])) {
-        foreach (array(
-                   'street_number',
-                   'street_name',
-                   'street_unit',
-                   'street_number_suffix',
-                 ) as $fld) {
-          unset($params[$fld]);
-        }
-        // main parse string.
-        $parseString = CRM_Utils_Array::value('street_address', $params);
-        $parsedFields = CRM_Core_BAO_Address::parseStreetAddress($parseString);
-
-        // merge parse address in to main address block.
-        $params = array_merge($params, $parsedFields);
+    if ($parseStreetAddress && !empty($params['street_address'])) {
+      foreach (array(
+                 'street_number',
+                 'street_name',
+                 'street_unit',
+                 'street_number_suffix',
+               ) as $fld) {
+        unset($params[$fld]);
       }
+      // main parse string.
+      $parseString = CRM_Utils_Array::value('street_address', $params);
+      $parsedFields = CRM_Core_BAO_Address::parseStreetAddress($parseString);
+
+      // merge parse address in to main address block.
+      $params = array_merge($params, $parsedFields);
     }
 
-    // check if geocode should be skipped (can be forced with an optional parameter through the api)
-    $skip_geocode = (isset($params['skip_geocode']) && $params['skip_geocode']) ? TRUE : FALSE;
-
-    // add latitude and longitude and format address if needed
-    if (!$skip_geocode && !empty($config->geocodeMethod) && ($config->geocodeMethod != 'CRM_Utils_Geocode_OpenStreetMaps') && empty($params['manual_geo_code'])) {
-      $class = $config->geocodeMethod;
-      $class::format($params);
+    // skip_geocode is an optional parameter through the api.
+    // manual_geo_code is on the contact edit form. They do the same thing....
+    if (empty($params['skip_geocode']) && empty($params['manual_geo_code'])) {
+      self::addGeocoderData($params);
     }
+
   }
 
   /**
@@ -537,7 +532,7 @@ class CRM_Core_BAO_Address extends CRM_Core_DAO_Address {
       $values['display'] = $address->display;
       $values['display_text'] = $address->display_text;
 
-      if (is_numeric($address->master_id)) {
+      if (isset($address->master_id) && !CRM_Utils_System::isNull($address->master_id)) {
         $values['use_shared_address'] = 1;
       }
 
@@ -719,25 +714,11 @@ ORDER BY civicrm_address.is_primary DESC, civicrm_address.location_type_id DESC,
    *   parsed fields values.
    */
   public static function parseStreetAddress($streetAddress, $locale = NULL) {
-    $config = CRM_Core_Config::singleton();
-
-    /* locales supported include:
-     *  en_US - http://pe.usps.com/cpim/ftp/pubs/pub28/pub28.pdf
-     *  en_CA - http://www.canadapost.ca/tools/pg/manual/PGaddress-e.asp
-     *  fr_CA - http://www.canadapost.ca/tools/pg/manual/PGaddress-f.asp
-     *          NB: common use of comma after street number also supported
-     *  default is en_US
-     */
-
-    $supportedLocalesForParsing = array('en_US', 'en_CA', 'fr_CA');
-    if (!$locale) {
-      $locale = $config->lcMessages;
-    }
-    // as different locale explicitly requested but is not available, display warning message and set $locale = 'en_US'
-    if (!in_array($locale, $supportedLocalesForParsing)) {
-      CRM_Core_Session::setStatus(ts('Unsupported locale specified to parseStreetAddress: %1. Proceeding with en_US locale.', array(1 => $locale)), ts('Unsupported Locale'), 'alert');
+    // use 'en_US' for address parsing if the requested locale is not supported.
+    if (!self::isSupportedParsingLocale($locale)) {
       $locale = 'en_US';
     }
+
     $emptyParseFields = $parseFields = array(
       'street_name' => '',
       'street_unit' => '',
@@ -879,6 +860,38 @@ ORDER BY civicrm_address.is_primary DESC, civicrm_address.location_type_id DESC,
     }
 
     return $parseFields;
+  }
+
+  /**
+   * Determines if the specified locale is
+   * supported by address parsing.
+   * If no locale is specified then it
+   * will check the default configured locale.
+   *
+   * locales supported include:
+   *  en_US - http://pe.usps.com/cpim/ftp/pubs/pub28/pub28.pdf
+   *  en_CA - http://www.canadapost.ca/tools/pg/manual/PGaddress-e.asp
+   *  fr_CA - http://www.canadapost.ca/tools/pg/manual/PGaddress-f.asp
+   *          NB: common use of comma after street number also supported
+   *
+   * @param string $locale
+   *   The locale to be checked
+   *
+   * @return bool
+   */
+  public static function isSupportedParsingLocale($locale = NULL) {
+    if (!$locale) {
+      $config = CRM_Core_Config::singleton();
+      $locale = $config->lcMessages;
+    }
+
+    $parsingSupportedLocales = array('en_US', 'en_CA', 'fr_CA');
+
+    if (in_array($locale, $parsingSupportedLocales)) {
+      return TRUE;
+    }
+
+    return FALSE;
   }
 
   /**
@@ -1031,7 +1044,7 @@ SELECT is_primary,
 
     // unset contact id
     $skipFields = array('is_primary', 'location_type_id', 'is_billing', 'contact_id');
-    if (CRM_Utils_Array::value('master_id', $params)) {
+    if (isset($params['master_id']) && !CRM_Utils_System::isNull($params['master_id'])) {
       // call the function to create a relationship for the new shared address
       self::processSharedAddressRelationship($params['master_id'], $params['contact_id']);
     }
@@ -1046,7 +1059,7 @@ SELECT is_primary,
     $addressDAO = new CRM_Core_DAO_Address();
     while ($dao->fetch()) {
       // call the function to update the relationship
-      if (CRM_Utils_Array::value('master_id', $params)) {
+      if (isset($params['master_id']) && !CRM_Utils_System::isNull($params['master_id'])) {
         self::processSharedAddressRelationship($params['master_id'], $dao->contact_id);
       }
       $addressDAO->copyValues($params);
@@ -1083,7 +1096,7 @@ SELECT is_primary,
         'individual_prefix' => $rows[$rowID]['individual_prefix'],
       );
       $format = Civi::settings()->get('display_name_format');
-      $firstNameWithPrefix = CRM_Utils_Address::format($formatted, $format, FALSE, FALSE, TRUE);
+      $firstNameWithPrefix = CRM_Utils_Address::format($formatted, $format, FALSE, FALSE);
       $firstNameWithPrefix = trim($firstNameWithPrefix);
 
       // fill uniqueAddress array with last/first name tree
@@ -1339,6 +1352,26 @@ SELECT is_primary,
         return CRM_Core_PseudoConstant::worldRegion();
     }
     return CRM_Core_PseudoConstant::get(__CLASS__, $fieldName, $params, $context);
+  }
+
+  /**
+   * Add data from the configured geocoding provider.
+   *
+   * Generally this means latitude & longitude data.
+   *
+   * @param array $params
+   * @return bool
+   *   TRUE if params could be passed to a provider, else FALSE.
+   */
+  public static function addGeocoderData(&$params) {
+    try {
+      $provider = CRM_Utils_GeocodeProvider::getConfiguredProvider();
+    }
+    catch (CRM_Core_Exception $e) {
+      return FALSE;
+    }
+    $provider::format($params);
+    return TRUE;
   }
 
 }

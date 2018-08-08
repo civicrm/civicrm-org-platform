@@ -675,6 +675,38 @@
       };
     })
 
+    // validate multiple email text
+    // usage: <input crm-multiple-email type="text" ng-model="myobj.field" />
+    .directive('crmMultipleEmail', function ($parse, $timeout) {
+      return {
+        require: 'ngModel',
+        link: function(scope, element, attrs, ctrl) {
+          ctrl.$parsers.unshift(function(viewValue) {
+            // if empty value provided simply bypass validation
+            if (_.isEmpty(viewValue)) {
+              ctrl.$setValidity('crmMultipleEmail', true);
+              return viewValue;
+            }
+
+            // split email string on basis of comma
+            var emails = viewValue.split(',');
+            // regex pattern for single email
+            var emailRegex = /\S+@\S+\.\S+/;
+
+            var validityArr = emails.map(function(str){
+              return emailRegex.test(str.trim());
+            });
+
+            if ($.inArray(false, validityArr) > -1) {
+              ctrl.$setValidity('crmMultipleEmail', false);
+            } else {
+              ctrl.$setValidity('crmMultipleEmail', true);
+            }
+            return viewValue;
+          });
+        }
+      };
+    })
     // example <div crm-ui-tab id="tab-1" crm-title="ts('My Title')" count="3">...content...</div>
     // WISHLIST: use a full Angular component instead of an incomplete jQuery wrapper
     .directive('crmUiTab', function($parse) {
@@ -843,6 +875,20 @@
         },
         link: function (scope, element, attrs) {
           scope.ts = CRM.ts(null);
+
+          element.find('.crm-wizard-buttons button').click(function () {
+            // These values are captured inside the click handler to ensure the
+            // positions/sizes of the elements are captured at the time of the
+            // click vs. at the time this directive is initialized.
+            var topOfWizard = element.offset().top;
+            var heightOfMenu = $('#civicrm-menu').height() || 0;
+
+            $('html')
+              // stop any other animations that might be happening...
+              .stop()
+              // gracefully slide the user to the top of the wizard
+              .animate({scrollTop: topOfWizard - heightOfMenu}, 1000);
+          });
         }
       };
     })
