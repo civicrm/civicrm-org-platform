@@ -84,6 +84,30 @@ class CRM_Core_BAO_CustomField extends CRM_Core_DAO_CustomField {
   }
 
   /**
+   * Build the map of custom field's data types and there respective Util type
+   *
+   * @return array
+   *   Data data-type => CRM_Utils_Type
+   */
+  public static function dataToType() {
+    return [
+      'String' => CRM_Utils_Type::T_STRING,
+      'Int' => CRM_Utils_Type::T_INT,
+      'Money' => CRM_Utils_Type::T_MONEY,
+      'Memo' => CRM_Utils_Type::T_LONGTEXT,
+      'Float' => CRM_Utils_Type::T_FLOAT,
+      'Date' => CRM_Utils_Type::T_DATE,
+      'DateTime' => CRM_Utils_Type::T_DATE + CRM_Utils_Type::T_TIME,
+      'Boolean' => CRM_Utils_Type::T_BOOLEAN,
+      'StateProvince' => CRM_Utils_Type::T_INT,
+      'File' => CRM_Utils_Type::T_STRING,
+      'Link' => CRM_Utils_Type::T_STRING,
+      'ContactReference' => CRM_Utils_Type::T_INT,
+      'Country' => CRM_Utils_Type::T_INT,
+    ];
+  }
+
+  /**
    * Get data to html array.
    *
    * (Does this caching achieve anything?)
@@ -206,6 +230,8 @@ class CRM_Core_BAO_CustomField extends CRM_Core_DAO_CustomField {
         $optionGroup->name = "{$columnName}_" . date('YmdHis');
         $optionGroup->title = $params['label'];
         $optionGroup->is_active = 1;
+        // Don't set reserved as it's not a built-in option group and may be useful for other custom fields.
+        $optionGroup->is_reserved = 0;
         $optionGroup->data_type = $dataType;
         $optionGroup->save();
         $params['option_group_id'] = $optionGroup->id;
@@ -376,6 +402,9 @@ class CRM_Core_BAO_CustomField extends CRM_Core_DAO_CustomField {
       $this->find(TRUE);
     }
 
+    // This will hold the list of options in format key => label
+    $options = [];
+
     if (!empty($this->option_group_id)) {
       $options = CRM_Core_OptionGroup::valuesByID(
         $this->option_group_id,
@@ -394,9 +423,6 @@ class CRM_Core_BAO_CustomField extends CRM_Core_DAO_CustomField {
     }
     elseif ($this->data_type === 'Boolean') {
       $options = $context == 'validate' ? array(0, 1) : CRM_Core_SelectValues::boolean();
-    }
-    else {
-      return FALSE;
     }
     CRM_Utils_Hook::customFieldOptions($this->id, $options, FALSE);
     CRM_Utils_Hook::fieldOptions($this->getEntity(), "custom_{$this->id}", $options, array('context' => $context));
@@ -691,6 +717,7 @@ class CRM_Core_BAO_CustomField extends CRM_Core_DAO_CustomField {
       $regexp = preg_replace('/[.,;:!?]/', '', CRM_Utils_Array::value(0, $values));
       $importableFields[$key] = array(
         'name' => $key,
+        'type' => CRM_Utils_Array::value(CRM_Utils_Array::value('data_type', $values), self::dataToType()),
         'title' => CRM_Utils_Array::value('label', $values),
         'headerPattern' => '/' . preg_quote($regexp, '/') . '/',
         'import' => 1,
@@ -2005,6 +2032,8 @@ AND    cf.id = %1";
   /**
    * Get custom option groups.
    *
+   * @deprecated Use the API OptionGroup.get
+   *
    * @param array $includeFieldIds
    *   Ids of custom fields for which option groups must be included.
    *
@@ -2189,46 +2218,45 @@ ORDER BY html_type";
   }
 
   /**
+   * Get custom field ID from field/group name/title.
    *
+   * @param string $fieldName Field name or label
+   * @param string|null $groupTitle (Optional) Group name or label
+   * @param bool $fullString Whether to return "custom_123" or "123"
+   *
+   * @return string|int|null
+   * @throws \CiviCRM_API3_Exception
    */
+  public static function getCustomFieldID($fieldName, $groupTitle = NULL, $fullString = FALSE) {
+    if (!isset(Civi::$statics['CRM_Core_BAO_CustomField'][$fieldName])) {
+      $customFieldParams = [
+        'name' => $fieldName,
+        'label' => $fieldName,
+        'options' => ['or' => [["name", "label"]]],
+      ];
 
-  /**
-   * Get custom field ID.
-   *
-   * @param string $fieldLabel
-   * @param null $groupTitle
-   *
-   * @return int|null
-   */
-  public static function getCustomFieldID($fieldLabel, $groupTitle = NULL) {
-    $params = array(1 => array($fieldLabel, 'String'));
-    if ($groupTitle) {
-      $params[2] = array($groupTitle, 'String');
-      $sql = "
-SELECT     f.id
-FROM       civicrm_custom_field f
-INNER JOIN civicrm_custom_group g ON f.custom_group_id = g.id
-WHERE      ( f.label = %1 OR f.name  = %1 )
-AND        ( g.title = %2 OR g.name = %2 )
-";
-    }
-    else {
-      $sql = "
-SELECT     f.id
-FROM       civicrm_custom_field f
-WHERE      ( f.label = %1 OR f.name = %1 )
-";
+      if ($groupTitle) {
+        $customFieldParams['custom_group_id.name'] = $groupTitle;
+        $customFieldParams['custom_group_id.title'] = $groupTitle;
+        $customFieldParams['options'] = ['or' => [["name", "label"], ["custom_group_id.name", "custom_group_id.title"]]];
+      }
+
+      $field = civicrm_api3('CustomField', 'get', $customFieldParams);
+
+      if (empty($field['id'])) {
+        Civi::$statics['CRM_Core_BAO_CustomField'][$fieldName]['id'] = NULL;
+        Civi::$statics['CRM_Core_BAO_CustomField'][$fieldName]['string'] = NULL;
+      }
+      else {
+        Civi::$statics['CRM_Core_BAO_CustomField'][$fieldName]['id'] = $field['id'];
+        Civi::$statics['CRM_Core_BAO_CustomField'][$fieldName]['string'] = 'custom_' . $field['id'];
+      }
     }
 
-    $dao = CRM_Core_DAO::executeQuery($sql, $params);
-    if ($dao->fetch() &&
-      $dao->N == 1
-    ) {
-      return $dao->id;
+    if ($fullString) {
+      return Civi::$statics['CRM_Core_BAO_CustomField'][$fieldName]['string'];
     }
-    else {
-      return NULL;
-    }
+    return Civi::$statics['CRM_Core_BAO_CustomField'][$fieldName]['id'];
   }
 
   /**

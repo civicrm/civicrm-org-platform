@@ -180,6 +180,29 @@ class CRM_Core_Form extends HTML_QuickForm_Page {
   public $urlPath = array();
 
   /**
+   * Context of the form being loaded.
+   *
+   * 'event' or null
+   *
+   * @var string
+   */
+  protected $context;
+
+  /**
+   * @return string
+   */
+  public function getContext() {
+    return $this->context;
+  }
+
+  /**
+   * Set context variable.
+   */
+  public function setContext() {
+    $this->context = CRM_Utils_Request::retrieve('context', 'Alphanumeric', $this);
+  }
+
+  /**
    * @var CRM_Core_Controller
    */
   public $controller;
@@ -1566,6 +1589,7 @@ class CRM_Core_Form extends HTML_QuickForm_Page {
         return $this->addEntityRef($name, $label, $props, $required);
 
       case 'Password':
+        $props['size'] = isset($props['size']) ? $props['size'] : 60;
         return $this->add('password', $name, $label, $props, $required);
 
       // Check datatypes of fields
@@ -1845,7 +1869,7 @@ class CRM_Core_Form extends HTML_QuickForm_Page {
     $setDefaultCurrency = TRUE
   ) {
     $currencies = CRM_Core_OptionGroup::values('currencies_enabled');
-    if (!array_key_exists($defaultCurrency, $currencies)) {
+    if (!empty($defaultCurrency) && !array_key_exists($defaultCurrency, $currencies)) {
       Civi::log()->warning('addCurrency: Currency ' . $defaultCurrency . ' is disabled but still in use!');
       $currencies[$defaultCurrency] = $defaultCurrency;
     }

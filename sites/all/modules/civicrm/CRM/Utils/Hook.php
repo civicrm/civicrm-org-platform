@@ -2418,4 +2418,57 @@ abstract class CRM_Utils_Hook {
     );
   }
 
+  /**
+   * This hook is called before a scheduled job is executed
+   *
+   * @param CRM_Core_DAO_Job $job
+   *   The job to be executed
+   * @param array $params
+   *   The arguments to be given to the job
+   */
+  public static function preJob($job, $params) {
+    return self::singleton()->invoke(array('job', 'params'), $job, $params,
+      self::$_nullObject, self::$_nullObject, self::$_nullObject, self::$_nullObject,
+      'civicrm_preJob'
+    );
+  }
+
+  /**
+   * This hook is called after a scheduled job is executed
+   *
+   * @param CRM_Core_DAO_Job $job
+   *   The job that was executed
+   * @param array $params
+   *   The arguments given to the job
+   * @param array $result
+   *   The result of the API call, or the thrown exception if any
+   */
+  public static function postJob($job, $params, $result) {
+    return self::singleton()->invoke(array('job', 'params', 'result'), $job, $params, $result,
+      self::$_nullObject, self::$_nullObject, self::$_nullObject,
+      'civicrm_postJob'
+    );
+  }
+
+  /**
+   * This hook is called before and after constructing mail recipients.
+   *  Allows user to alter filter and/or search query to fetch mail recipients
+   *
+   * @param CRM_Mailing_DAO_Mailing $mailingObject
+   * @param array $criteria
+   *   A list of SQL criteria; you can add/remove/replace/modify criteria.
+   *   Array(string $name => CRM_Utils_SQL_Select $criterion).
+   *   Ex: array('do_not_email' => CRM_Utils_SQL_Select::fragment()->where("$contact.do_not_email = 0")).
+   * @param string $context
+   *   Ex: 'pre', 'post'
+   * @return mixed
+   */
+  public static function alterMailingRecipients(&$mailingObject, &$criteria, $context) {
+    return self::singleton()->invoke(array('mailingObject', 'params', 'context'),
+      $mailingObject, $criteria, $context,
+      self::$_nullObject, self::$_nullObject, self::$_nullObject,
+      'civicrm_alterMailingRecipients'
+    );
+  }
+
 }

@@ -489,6 +489,14 @@ class CRM_Report_Form extends CRM_Core_Form {
   protected $sqlArray;
 
   /**
+   * Tables created for the report that need removal afterwards.
+   *
+   * ['civicrm_temp_report_x' => ['temporary' => TRUE, 'name' => 'civicrm_temp_report_x']
+   * @var array
+   */
+  protected $temporaryTables = [];
+
+  /**
    * Can this report use the sql mode ONLY_FULL_GROUP_BY.
    * @var bool
    */
@@ -1061,6 +1069,15 @@ class CRM_Report_Form extends CRM_Core_Form {
   }
 
   /**
+   * Getter for $_params.
+   *
+   * @return void|array $params
+   */
+  public function getParams() {
+    return $this->_params;
+  }
+
+  /**
    * Setter for $_id.
    *
    * @param int $instanceID
@@ -1112,6 +1129,36 @@ class CRM_Report_Form extends CRM_Core_Form {
    */
   public function getDefaultValues() {
     return $this->_defaults;
+  }
+
+  /**
+   * Remove any temporary tables.
+   */
+  public function cleanUpTemporaryTables() {
+    foreach ($this->temporaryTables as $temporaryTable) {
+      CRM_Core_DAO::executeQuery('DROP ' . ($temporaryTable['temporary'] ? 'TEMPORARY' : '') . ' TABLE IF EXISTS ' . $temporaryTable['name']);
+    }
+  }
+
+  /**
+   * Create a temporary table.
+   *
+   * This function creates a table AND adds the details to the developer tab & $this->>temporary tables.
+   *
+   * @todo improve presentation on the developer tab since CREATE TEMPORARY is removed.
+   *
+   * @param string $identifier
+   * @param $sql
+   * @param bool $isTrueTemporary
+   *   Is this a mysql temporary table or temporary in a less technical sense.
+   *
+   * @return string
+   */
+  public function createTemporaryTable($identifier, $sql, $isTrueTemporary = TRUE) {
+    $this->addToDeveloperTab($sql);
+    $name = CRM_Utils_SQL_TempTable::build()->setUtf8(TRUE)->setDurable($isTrueTemporary)->createWithQuery($sql)->getName();
+    $this->temporaryTables[$identifier] = ['temporary' => $isTrueTemporary, 'name' => $name];
+    return $name;
   }
 
   /**
@@ -3672,7 +3719,7 @@ WHERE cg.extends IN ('" . implode("','", $this->_customGroupExtends) . "') AND
         WHERE smartgroup_contact.group_id IN ({$smartGroups}) ";
     }
 
-    $this->groupTempTable = 'civicrm_report_temp_group_' . date('Ymd_') . uniqid();
+    $this->groupTempTable = CRM_Utils_SQL_TempTable::build()->setCategory('rptgrp')->setId(date('Ymd_') . uniqid())->getName();
     $this->executeReportQuery("
       CREATE TEMPORARY TABLE $this->groupTempTable $this->_databaseAttributes
       $query
@@ -4383,70 +4430,51 @@ LEFT JOIN civicrm_contact {$field['alias']} ON {$field['alias']}.id = {$this->_a
 
   /**
    * Do AlterDisplay processing on Address Fields.
+   *  If there are multiple address field values then
+   *  on basis of provided separator the code values are translated into respective labels
    *
    * @param array $row
    * @param array $rows
    * @param int $rowNum
    * @param string $baseUrl
    * @param string $linkText
+   * @param string $separator
    *
    * @return bool
    */
-  public function alterDisplayAddressFields(&$row, &$rows, &$rowNum, $baseUrl, $linkText) {
+  public function alterDisplayAddressFields(&$row, &$rows, &$rowNum, $baseUrl, $linkText, $separator = ',') {
     $criteriaQueryParams = CRM_Report_Utils_Report::getPreviewCriteriaQueryParams($this->_defaults, $this->_params);
     $entryFound = FALSE;
-    // handle country
-    if (array_key_exists('civicrm_address_country_id', $row)) {
-      if ($value = $row['civicrm_address_country_id']) {
-        $rows[$rowNum]['civicrm_address_country_id'] = CRM_Core_PseudoConstant::country($value, FALSE);
-        if ($baseUrl) {
-          $url = CRM_Report_Utils_Report::getNextUrl($baseUrl,
-            "reset=1&force=1&{$criteriaQueryParams}&" .
-            "country_id_op=in&country_id_value={$value}",
-            $this->_absoluteUrl, $this->_id
-          );
-          $rows[$rowNum]['civicrm_address_country_id_link'] = $url;
-          $rows[$rowNum]['civicrm_address_country_id_hover'] = ts("%1 for this country.",
-            array(1 => $linkText)
-          );
+    $columnMap = array(
+      'civicrm_address_country_id' => 'country',
+      'civicrm_address_county_id' => 'county',
+      'civicrm_address_state_province_id' => 'stateProvince',
+    );
+    foreach ($columnMap as $fieldName => $fnName) {
+      if (array_key_exists($fieldName, $row)) {
+        if ($values = $row[$fieldName]) {
+          $values = (array) explode($separator, $values);
+          $rows[$rowNum][$fieldName] = [];
+          $addressField = $fnName == 'stateProvince' ? 'state' : $fnName;
+          foreach ($values as $value) {
+            $rows[$rowNum][$fieldName][] = CRM_Core_PseudoConstant::$fnName($value);
+          }
+          $rows[$rowNum][$fieldName] = implode($separator, $rows[$rowNum][$fieldName]);
+          if ($baseUrl) {
+            $url = CRM_Report_Utils_Report::getNextUrl($baseUrl,
+              sprintf("reset=1&force=1&%s&%s_op=in&%s_value=%s",
+                $criteriaQueryParams,
+                str_replace('civicrm_address_', '', $fieldName),
+                str_replace('civicrm_address_', '', $fieldName),
+                implode(',', $values)
+              ), $this->_absoluteUrl, $this->_id
+            );
+            $rows[$rowNum]["{$fieldName}_link"] = $url;
+            $rows[$rowNum]["{$fieldName}_hover"] = ts("%1 for this %2.", array(1 => $linkText, 2 => $addressField));
+          }
+          $entryFound = TRUE;
         }
       }
-
-      $entryFound = TRUE;
-    }
-    if (array_key_exists('civicrm_address_county_id', $row)) {
-      if ($value = $row['civicrm_address_county_id']) {
-        $rows[$rowNum]['civicrm_address_county_id'] = CRM_Core_PseudoConstant::county($value, FALSE);
-        if ($baseUrl) {
-          $url = CRM_Report_Utils_Report::getNextUrl($baseUrl,
-            "reset=1&force=1&{$criteriaQueryParams}&" .
-            "county_id_op=in&county_id_value={$value}",
-            $this->_absoluteUrl, $this->_id
-          );
-          $rows[$rowNum]['civicrm_address_county_id_link'] = $url;
-          $rows[$rowNum]['civicrm_address_county_id_hover'] = ts("%1 for this county.",
-            array(1 => $linkText)
-          );
-        }
-      }
-      $entryFound = TRUE;
-    }
-    // handle state province
-    if (array_key_exists('civicrm_address_state_province_id', $row)) {
-      if ($value = $row['civicrm_address_state_province_id']) {
-        $rows[$rowNum]['civicrm_address_state_province_id'] = CRM_Core_PseudoConstant::stateProvince($value, FALSE);
-        if ($baseUrl) {
-          $url = CRM_Report_Utils_Report::getNextUrl($baseUrl,
-            "reset=1&force=1&{$criteriaQueryParams}&state_province_id_op=in&state_province_id_value={$value}",
-            $this->_absoluteUrl, $this->_id
-          );
-          $rows[$rowNum]['civicrm_address_state_province_id_link'] = $url;
-          $rows[$rowNum]['civicrm_address_state_province_id_hover'] = ts("%1 for this state.",
-            array(1 => $linkText)
-          );
-        }
-      }
-      $entryFound = TRUE;
     }
 
     return $entryFound;
@@ -5357,6 +5385,22 @@ LEFT JOIN civicrm_contact {$field['alias']} ON {$field['alias']}.id = {$this->_a
         'title' => $options['prefix_label'] . ts('Nick Name'),
         'is_fields' => TRUE,
       ),
+      $options['prefix'] . 'prefix_id' => array(
+        'name' => 'prefix_id',
+        'title' => $options['prefix_label'] . ts('Prefix'),
+        'options' => CRM_Contact_BAO_Contact::buildOptions('prefix_id'),
+        'operatorType' => CRM_Report_Form::OP_MULTISELECT,
+        'is_fields' => TRUE,
+        'is_filters' => TRUE,
+      ),
+      $options['prefix'] . 'suffix_id' => array(
+        'name' => 'suffix_id',
+        'title' => $options['prefix_label'] . ts('Suffix'),
+        'options' => CRM_Contact_BAO_Contact::buildOptions('suffix_id'),
+        'operatorType' => CRM_Report_Form::OP_MULTISELECT,
+        'is_fields' => TRUE,
+        'is_filters' => TRUE,
+      ),
       $options['prefix'] . 'gender_id' => array(
         'name' => 'gender_id',
         'title' => $options['prefix_label'] . ts('Gender'),
@@ -5447,6 +5491,16 @@ LEFT JOIN civicrm_contact {$field['alias']} ON {$field['alias']}.id = {$this->_a
         'title' => ts($options['prefix_label'] . 'Street Number'),
         'type' => 1,
         'is_fields' => TRUE,
+      ),
+      $options['prefix'] . 'odd_street_number' => array(
+        'title' => ts('Odd / Even Street Number'),
+        'name' => 'odd_street_number',
+        'type' => CRM_Utils_Type::T_INT,
+        'no_display' => TRUE,
+        'required' => TRUE,
+        'dbAlias' => '(address_civireport.street_number % 2)',
+        'is_fields' => TRUE,
+        'is_order_bys' => TRUE,
       ),
       $options['prefix'] . 'street_name' => array(
         'name' => 'street_name',

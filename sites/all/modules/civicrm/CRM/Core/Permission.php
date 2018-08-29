@@ -761,6 +761,14 @@ class CRM_Core_Permission {
       'delete activities' => array(
         $prefix . ts('Delete activities'),
       ),
+      'edit inbound email basic information' => array(
+        $prefix . ts('edit inbound email basic information'),
+        ts('Edit all inbound email activities (for visible contacts) basic information. Content editing not allowed.'),
+      ),
+      'edit inbound email basic information and content' => array(
+        $prefix . ts('edit inbound email basic information and content'),
+        ts('Edit all inbound email activities (for visible contacts) basic information and content.'),
+      ),
       'access CiviCRM' => array(
         $prefix . ts('access CiviCRM backend and API'),
         ts('Master control for access to the main CiviCRM backend and API. Give to trusted roles only.'),
@@ -1465,11 +1473,18 @@ class CRM_Core_Permission {
     $permissions['option_value'] = $permissions['uf_group'];
     $permissions['option_group'] = $permissions['option_value'];
 
+    $permissions['custom_value'] = array(
+      'gettree' => array('access CiviCRM'),
+    );
+
     $permissions['message_template'] = array(
       'get' => array('access CiviCRM'),
       'create' => array('edit message templates', 'edit user-driven message templates', 'edit system workflow message templates'),
       'update' => array('edit message templates', 'edit user-driven message templates', 'edit system workflow message templates'),
     );
+
+    $permissions['report_template']['update'] = 'save Report Criteria';
+    $permissions['report_template']['create'] = 'save Report Criteria';
     return $permissions;
   }
 

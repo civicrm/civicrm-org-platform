@@ -88,22 +88,12 @@ class CRM_Core_BAO_OptionGroup extends CRM_Core_DAO_OptionGroup {
    * @return object
    */
   public static function add(&$params, $ids = array()) {
-    if (empty($params['id'])) {
-      $params['id'] = CRM_Utils_Array::value('optionGroup', $ids);
+    if (empty($params['id']) && !empty($ids['optionGroup'])) {
+      CRM_Core_Error::deprecatedFunctionWarning('no $ids array');
+      $params['id'] = $ids['optionGroup'];
     }
-
-    $params['is_active'] = CRM_Utils_Array::value('is_active', $params, FALSE);
-    $params['is_default'] = CRM_Utils_Array::value('is_default', $params, FALSE);
-
-    // action is taken depending upon the mode
     $optionGroup = new CRM_Core_DAO_OptionGroup();
     $optionGroup->copyValues($params);;
-
-    if ($params['is_default']) {
-      $query = "UPDATE civicrm_option_group SET is_default = 0";
-      CRM_Core_DAO::executeQuery($query);
-    }
-
     $optionGroup->save();
     return $optionGroup;
   }
