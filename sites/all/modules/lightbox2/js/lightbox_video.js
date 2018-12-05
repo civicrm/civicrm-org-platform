@@ -86,7 +86,7 @@ Lightvideo = {
       var results = pattern.exec(href);
       if (results !== null) {
         Lightbox.videoId = results[1];
-        var href = "https://www.youtube.com/embed/"+Lightbox.videoId;
+        var href = "//www.youtube.com/embed/"+Lightbox.videoId;
         var variables = 'fs=1';
         if (Lightbox.flvFlashvars.length) {
           variables = variables + '&' + Lightbox.flvFlashvars;
@@ -109,9 +109,9 @@ Lightvideo = {
   // checkGoogleVideo()
   checkGoogleVideo: function(href) {
     var patterns = [
-      'http://video.google.[a-z]{2,4}/googleplayer.swf\\?docId=(-?\\d*)',
-      'http://video.google.[a-z]{2,4}/videoplay\\?docid=([^&]*)&',
-      'http://video.google.[a-z]{2,4}/videoplay\\?docid=(.*)'
+      '//video.google.[a-z]{2,4}/googleplayer.swf\\?docId=(-?\\d*)',
+      '//video.google.[a-z]{2,4}/videoplay\\?docid=([^&]*)&',
+      '//video.google.[a-z]{2,4}/videoplay\\?docid=(.*)'
       ];
 
     for (var i = 0; i < patterns.length; i++) {
@@ -119,7 +119,7 @@ Lightvideo = {
       var results = pattern.exec(href);
       if (results !== null) {
         Lightbox.videoId = results[1];
-        var href = "http://video.google.com/googleplayer.swf?docId="+Lightbox.videoId+"&hl=en";
+        var href = "//video.google.com/googleplayer.swf?docId="+Lightbox.videoId+"&hl=en";
         var variables = 'fs=true';
         if (Lightbox.flvFlashvars.length) {
           variables = variables + '&' + Lightbox.flvFlashvars;
@@ -145,7 +145,7 @@ Lightvideo = {
       var results = pattern.exec(href);
       if (results !== null) {
         Lightbox.videoId = results[1];
-        Lightvideo.createEmbed("http://www.metacafe.com/fplayer/"+Lightbox.videoId+"/.swf", "flvvideo", "#ffffff");
+        Lightvideo.createEmbed("//www.metacafe.com/fplayer/"+Lightbox.videoId+"/.swf", "flvvideo", "#ffffff");
         return true;
       }
     }
@@ -166,7 +166,7 @@ Lightvideo = {
       var results = pattern.exec(href);
       if (results !== null) {
         Lightbox.videoId = results[1];
-        Lightvideo.createEmbed("http://www.spike.com/efp", "flvvideo", "#000", "flvbaseclip="+Lightbox.videoId+"&amp;");
+        Lightvideo.createEmbed("//www.spike.com/efp", "flvvideo", "#000", "flvbaseclip="+Lightbox.videoId+"&amp;");
         return true;
       }
     }
@@ -187,7 +187,7 @@ Lightvideo = {
       var results = pattern.exec(href);
       if (results !== null) {
         Lightbox.videoId = results[1];
-        Lightvideo.createEmbed("http://lads.myspace.com/videos/vplayer.swf", "flvvideo", "#ffffff", "m="+Lightbox.videoId);
+        Lightvideo.createEmbed("//lads.myspace.com/videos/vplayer.swf", "flvvideo", "#ffffff", "m="+Lightbox.videoId);
         return true;
       }
     }
@@ -207,7 +207,7 @@ Lightvideo = {
       var results = pattern.exec(href);
       if (results !== null) {
         Lightbox.videoId = results[1];
-        Lightvideo.createEmbed("http://www.livevideo.com/flvplayer/embed/"+Lightbox.videoId, "flvvideo", "#ffffff");
+        Lightvideo.createEmbed("//www.livevideo.com/flvplayer/embed/"+Lightbox.videoId, "flvvideo", "#ffffff");
         return true;
       }
     }
